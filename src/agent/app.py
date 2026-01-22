@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+from typing import Annotated, Callable, List, Sequence, TypedDict
+
+from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langgraph.graph import END, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
+
+from src.core.llm_factory import build_chat_model
+from src.tools import add, multiply, subtract
+
+load_dotenv()
+
+SYSTEM_PROMPT = SystemMessage(
+    content="You are my AI assistant. Use tools when needed and answer clearly."
+)
+
+
+class AgentState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+
+
+tools = [add, subtract, multiply]
+llm = build_chat_model(tools)
+
+
+def model_call(state: AgentState) -> AgentState:
+    response = llm.invoke([SYSTEM_PROMPT] + list(state["messages"]))
+    return {"messages": [response]}
+
+
+def should_continue(state: AgentState) -> str:
+    messages = state.get("messages", [])
+    if not messages:
+        return "end"
+
+    last_message = messages[-1]
+    return "continue" if getattr(last_message, "tool_calls", None) else "end"
+
+
+def build_app():
+    graph = StateGraph(AgentState)
+    graph.add_node("agent", model_call)
+    graph.add_node("tools", ToolNode(tools=tools))
+    graph.set_entry_point("agent")
+    graph.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "continue": "tools",
+            "end": END,
+        },
+    )
+    graph.add_edge("tools", "agent")
+    return graph.compile()
+
+
+ChunkHandler = Callable[[str], None]
+
+
+def stream_agent_response(app, conversation_history: Sequence[BaseMessage], on_chunk: ChunkHandler) -> List[BaseMessage]:
+    """Stream the agent response and return the updated conversation history."""
+
+    last_content = ""
+    final_messages: Sequence[BaseMessage] = conversation_history
+
+    for update in app.stream({"messages": conversation_history}, stream_mode="updates"):
+        agent_update = update.get("agent")
+        if not agent_update:
+            continue
+
+        final_messages = agent_update["messages"]
+        if not final_messages:
+            continue
+
+        ai_message = final_messages[-1]
+        if not isinstance(ai_message, AIMessage):
+            continue
+
+        content = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+        new_text = content[len(last_content) :]
+        last_content = content
+        if new_text:
+            on_chunk(new_text)
+
+    return list(final_messages)
+
+
+def get_last_ai_text(messages: Sequence[BaseMessage]) -> str:
+    for message in reversed(messages):
+        if isinstance(message, AIMessage):
+            return message.content if isinstance(message.content, str) else str(message.content)
+    return ""
