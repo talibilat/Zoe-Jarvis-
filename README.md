@@ -1,6 +1,6 @@
 # Zoe voice agent
 
-This project is a small LangGraph-based voice agent that can run against Azure OpenAI or the standard OpenAI API. The main entry points (`main.py` and `src/agent/app.py`) load environment variables via `.env`, and the LangGraph course examples under `LangGraph-Course-freeCodeCamp/` can also use the OpenAI API.
+This project is a small LangGraph-based voice agent that can run against Azure OpenAI or the standard OpenAI API. The main entry points (`main.py` and `src/agent/app.py`) load environment variables via `.env`.
 
 ## Quick start
 
