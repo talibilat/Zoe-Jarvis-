@@ -8,7 +8,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-from src.core.llm_factory import build_chat_model
+from src.core.clients.llm_client import build_chat_model
 from src.tools import add, multiply, subtract
 
 load_dotenv()
@@ -23,12 +23,14 @@ class AgentState(TypedDict):
 
 
 tools = [add, subtract, multiply]
-llm = build_chat_model(tools)
 
 
-def model_call(state: AgentState) -> AgentState:
-    response = llm.invoke([SYSTEM_PROMPT] + list(state["messages"]))
-    return {"messages": [response]}
+def build_model_call(llm):
+    def model_call(state: AgentState) -> AgentState:
+        response = llm.invoke([SYSTEM_PROMPT] + list(state["messages"]))
+        return {"messages": [response]}
+
+    return model_call
 
 
 def should_continue(state: AgentState) -> str:
@@ -40,9 +42,10 @@ def should_continue(state: AgentState) -> str:
     return "continue" if getattr(last_message, "tool_calls", None) else "end"
 
 
-def build_app():
+def build_app(prompt_on_multiple: bool = True):
+    llm = build_chat_model(tools, prompt_on_multiple=prompt_on_multiple)
     graph = StateGraph(AgentState)
-    graph.add_node("agent", model_call)
+    graph.add_node("agent", build_model_call(llm))
     graph.add_node("tools", ToolNode(tools=tools))
     graph.set_entry_point("agent")
     graph.add_conditional_edges(

@@ -12,6 +12,7 @@ langchain-community
 langchain-core
 langchain-ollama
 langchain-openai
+langchain-anthropic
 ollama
 openai
 python-dotenv
@@ -31,3 +32,8 @@ dotenv
 typing
 chromadb
 langchain_chroma
+
+# Gmail dependencies
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

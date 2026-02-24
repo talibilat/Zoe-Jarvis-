@@ -8,7 +8,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-from src.core.llm_factory import build_chat_model
+from src.core.clients.llm_client import build_chat_model
 from src.core.logs import log_conversation
 from src.core.speech_service import speak_text, transcribe_speech
 from src.tools import add, multiply, subtract
@@ -19,16 +19,18 @@ load_dotenv()
 SYSTEM_PROMPT = SystemMessage(content="You are my AI assistant. Use tools when needed and answer clearly.")
 
 tools = [add, subtract, multiply]
-llm = build_chat_model(tools)
 
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
 
-def model_call(state: AgentState) -> AgentState:
-    response = llm.invoke([SYSTEM_PROMPT] + list(state["messages"]))
-    return {"messages": [response]}
+def build_model_call(llm):
+    def model_call(state: AgentState) -> AgentState:
+        response = llm.invoke([SYSTEM_PROMPT] + list(state["messages"]))
+        return {"messages": [response]}
+
+    return model_call
 
 
 def should_continue(state: AgentState) -> str:
@@ -40,8 +42,9 @@ def should_continue(state: AgentState) -> str:
 
 
 def build_app():
+    llm = build_chat_model(tools)
     graph = StateGraph(AgentState)
-    graph.add_node("agent", model_call)
+    graph.add_node("agent", build_model_call(llm))
     graph.add_node("tools", ToolNode(tools=tools))
     graph.set_entry_point("agent")
     graph.add_conditional_edges(

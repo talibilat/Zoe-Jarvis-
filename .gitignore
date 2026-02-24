@@ -25,3 +25,5 @@ logging.txt
 
 # Local credentials
 credentials.json
+token.json
+token.json.bak
