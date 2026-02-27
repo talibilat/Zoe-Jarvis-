@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tools.add_tool import add
+from src.tools.mathematical_operations.add_tool import add
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,25 @@
 """Tool implementations for the CLI agent."""
 
-from .add_tool import add
-from .subtract_tool import subtract
-from .multiply_tool import multiply
+from .emails.email_main import EMAIL_TOOLS
+from .emails.gmail import (
+    gmail_create_draft,
+    gmail_total_counts,
+    gmail_unread_count,
+    gmail_unread_summary,
+)
+from .mathematical_operations import MATHEMATICAL_TOOLS, add, multiply, subtract
 
-__all__ = ["add", "subtract", "multiply"]
+AGENT_TOOLS = [*MATHEMATICAL_TOOLS, *EMAIL_TOOLS]
+
+__all__ = [
+    "add",
+    "subtract",
+    "multiply",
+    "gmail_total_counts",
+    "gmail_unread_count",
+    "gmail_unread_summary",
+    "gmail_create_draft",
+    "MATHEMATICAL_TOOLS",
+    "EMAIL_TOOLS",
+    "AGENT_TOOLS",
+]

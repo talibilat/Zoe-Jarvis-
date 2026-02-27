@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-import src.tools.gmail.gmail_unread as gmail_unread
+import src.tools.emails.gmail.gmail_unread as gmail_unread
 
 
 class _Executable:

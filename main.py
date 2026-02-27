@@ -11,7 +11,12 @@ from langgraph.prebuilt import ToolNode
 from src.core.clients.llm_client import build_chat_model
 from src.core.logs import log_conversation
 from src.core.speech_service import speak_text, transcribe_speech
-from src.tools import add, multiply, subtract
+from src.core.terminal_ui import (
+    format_assistant_line,
+    format_system_line,
+    format_user_line,
+)
+from src.tools import AGENT_TOOLS
 
 load_dotenv()
 
@@ -20,7 +25,7 @@ SYSTEM_PROMPT = SystemMessage(
     content="You are my AI assistant. Use tools when needed and answer clearly."
 )
 
-tools = [add, subtract, multiply]
+tools = AGENT_TOOLS
 
 
 class AgentState(TypedDict):
@@ -47,7 +52,7 @@ def build_app():
     llm = build_chat_model(tools)
     graph = StateGraph(AgentState)
     graph.add_node("agent", build_model_call(llm))
-    graph.add_node("tools", ToolNode(tools=tools))
+    graph.add_node("tools", ToolNode(tools=tools, handle_tool_errors=True))
     graph.set_entry_point("agent")
     graph.add_conditional_edges(
         "agent",
@@ -72,24 +77,35 @@ def main() -> None:
     app = build_app()
     conversation_history: List[BaseMessage] = []
 
-    print("Say 'exit' to quit. I'm listening for your question or math problem.")
+    print(
+        format_system_line(
+            "Say 'exit' to quit. I'm listening for your question or math problem.",
+            tone="system",
+            bold=True,
+        )
+    )
     while True:
         try:
-            print("\nListening...")
+            print()
+            print(format_system_line("Listening...", tone="listening", bold=True))
             user_input = transcribe_speech()
         except (EOFError, KeyboardInterrupt):
             print()
             break
 
         if user_input is None:
-            print("I didn't catch that. Please try again.")
+            print(
+                format_system_line(
+                    "I didn't catch that. Please try again.", tone="warning"
+                )
+            )
             continue
 
         user_input = user_input.strip()
         if not user_input:
             continue
 
-        print(f"You: {user_input}")
+        print(format_user_line(user_input))
 
         if user_input.lower() == "exit":
             break
@@ -105,16 +121,24 @@ def main() -> None:
                 if isinstance(ai_message.content, str)
                 else str(ai_message.content)
             )
-            print(f"\nZoe: {content}\n")
+            print()
+            print(format_assistant_line(content))
+            print()
             speak_text(content)
         else:
-            print("\nZoe: I was not able to generate a response.\n")
+            print()
+            print(format_assistant_line("I was not able to generate a response."))
+            print()
 
     if conversation_history:
         log_path = log_conversation(conversation_history)
-        print(f"Conversation saved to {log_path.name}")
+        print(
+            format_system_line(
+                f"Conversation saved to {log_path.name}", tone="success", bold=True
+            )
+        )
     else:
-        print("No conversation to save.")
+        print(format_system_line("No conversation to save.", tone="info"))
 
 
 if __name__ == "__main__":

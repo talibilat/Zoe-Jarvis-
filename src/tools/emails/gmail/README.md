@@ -18,8 +18,8 @@ when run with `--enumerate`, walks every message ID to verify the count.
 
 #### Example
 ```bash
-python src/tools/gmail/gmail_count.py
-python src/tools/gmail/gmail_count.py --enumerate --page-size 250
+python src/tools/emails/gmail/gmail_count.py
+python src/tools/emails/gmail/gmail_count.py --enumerate --page-size 250
 ```
 
 ### `gmail_unread.py`
@@ -34,7 +34,7 @@ Utility functions (no CLI) to retrieve unread email metadata.
 
 #### Example
 ```python
-from src.tools.gmail.gmail_unread import get_unread_count, get_unread_email_summary
+from src.tools.emails.gmail.gmail_unread import get_unread_count, get_unread_email_summary
 
 total_unread = get_unread_count()
 print(f"Unread emails: {total_unread}")

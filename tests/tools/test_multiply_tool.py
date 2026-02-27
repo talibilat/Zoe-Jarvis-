@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tools.multiply_tool import multiply
+from src.tools.mathematical_operations.multiply_tool import multiply
 
 
 @pytest.mark.parametrize(

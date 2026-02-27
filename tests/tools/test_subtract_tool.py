@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tools.subtract_tool import subtract
+from src.tools.mathematical_operations.subtract_tool import subtract
 
 
 @pytest.mark.parametrize(

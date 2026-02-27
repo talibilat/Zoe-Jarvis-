@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 from langchain_core.messages import HumanMessage
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from src.core.terminal_ui import format_system_line
 
 try:
     from langchain_anthropic import ChatAnthropic
@@ -149,20 +150,24 @@ def _validate_candidates(
     working: list[tuple[ProviderCandidate, object]] = []
     failed: list[tuple[ProviderCandidate, str]] = []
 
-    print("Validating configured LLM providers...")
+    print(
+        format_system_line(
+            "Validating configured LLM providers...", tone="system", bold=True
+        )
+    )
     for candidate in candidates:
-        print(f"- Testing {candidate.display_name}...")
+        print(format_system_line(f"- Testing {candidate.display_name}...", tone="info"))
         try:
             model = candidate.make_model()
             model.invoke([HumanMessage(content=PROVIDER_PING_MESSAGE)])
         except Exception as exc:
             reason = _short_error(exc)
             failed.append((candidate, reason))
-            print(f"  Failed: {reason}")
+            print(format_system_line(f"  Failed: {reason}", tone="error", bold=True))
             continue
 
         working.append((candidate, model))
-        print("  OK")
+        print(format_system_line("  OK", tone="success", bold=True))
 
     return working, failed
 
@@ -175,7 +180,13 @@ def _choose_model(
     if forced_provider:
         for candidate, model in working:
             if candidate.provider_id == forced_provider:
-                print(f"Using provider from LLM_PROVIDER='{forced_provider}'.")
+                print(
+                    format_system_line(
+                        f"Using provider from LLM_PROVIDER='{forced_provider}'.",
+                        tone="success",
+                        bold=True,
+                    )
+                )
                 return candidate, model
         available = (
             ", ".join(candidate.provider_id for candidate, _ in working) or "none"
@@ -189,19 +200,37 @@ def _choose_model(
 
     if not prompt_on_multiple or not sys.stdin.isatty():
         print(
-            f"Multiple providers are valid. Defaulting to {working[0][0].display_name}. "
-            "Set LLM_PROVIDER to force a provider."
+            format_system_line(
+                f"Multiple providers are valid. Defaulting to {working[0][0].display_name}. "
+                "Set LLM_PROVIDER to force a provider.",
+                tone="warning",
+            )
         )
         return working[0]
 
-    print("Multiple providers are configured and working.")
+    print(
+        format_system_line(
+            "Multiple providers are configured and working.",
+            tone="warning",
+            bold=True,
+        )
+    )
     for index, (candidate, _) in enumerate(working, start=1):
-        print(f"{index}. {candidate.display_name} [{candidate.provider_id}]")
+        print(
+            format_system_line(
+                f"{index}. {candidate.display_name} [{candidate.provider_id}]",
+                tone="info",
+            )
+        )
 
     default_idx = 1
     while True:
         raw = input(
-            f"Choose provider [1-{len(working)}] (default {default_idx}): "
+            format_system_line(
+                f"Choose provider [1-{len(working)}] (default {default_idx}): ",
+                tone="prompt",
+                bold=True,
+            )
         ).strip()
         if raw == "":
             return working[default_idx - 1]
@@ -209,7 +238,12 @@ def _choose_model(
             selected_idx = int(raw)
             if 1 <= selected_idx <= len(working):
                 return working[selected_idx - 1]
-        print(f"Invalid choice '{raw}'. Enter a number between 1 and {len(working)}.")
+        print(
+            format_system_line(
+                f"Invalid choice '{raw}'. Enter a number between 1 and {len(working)}.",
+                tone="error",
+            )
+        )
 
 
 def build_chat_model(tools: Sequence | None = None, prompt_on_multiple: bool = True):
@@ -238,5 +272,11 @@ def build_chat_model(tools: Sequence | None = None, prompt_on_multiple: bool = T
         working=working,
         prompt_on_multiple=prompt_on_multiple,
     )
-    print(f"Using provider: {selected_provider.display_name}")
+    print(
+        format_system_line(
+            f"Using provider: {selected_provider.display_name}",
+            tone="success",
+            bold=True,
+        )
+    )
     return selected_model.bind_tools(tools) if tools else selected_model

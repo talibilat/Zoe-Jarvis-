@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import src.tools.gmail.gmail_count as gmail_count
+import src.tools.emails.gmail.gmail_count as gmail_count
 
 
 def _make_execute(payload: dict) -> MagicMock:

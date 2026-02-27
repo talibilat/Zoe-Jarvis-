@@ -22,14 +22,16 @@ echo "==> Import/link checks"
 import importlib
 
 modules = [
-    "src.tools.add_tool",
-    "src.tools.subtract_tool",
-    "src.tools.multiply_tool",
-    "src.tools.gmail.gmail_count",
-    "src.tools.gmail.gmail_unread",
-    "src.tools.gmail.gmail_draft",
+    "src.tools.mathematical_operations.add_tool",
+    "src.tools.mathematical_operations.subtract_tool",
+    "src.tools.mathematical_operations.multiply_tool",
+    "src.tools.emails.gmail.gmail_count",
+    "src.tools.emails.gmail.gmail_unread",
+    "src.tools.emails.gmail.gmail_draft",
+    "src.tools.emails.email_main",
     "src.core.clients.gmail_client",
     "src.core.clients.llm_client",
+    "src.core.terminal_ui",
 ]
 
 for module_name in modules:

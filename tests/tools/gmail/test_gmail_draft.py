@@ -6,9 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from google.auth.exceptions import RefreshError
 from googleapiclient.errors import HttpError
 
-import src.tools.gmail.gmail_draft as gmail_draft
+import src.tools.emails.gmail.gmail_draft as gmail_draft
 
 
 class FakeCreds:
@@ -129,6 +130,37 @@ def test_refreshes_expired_credentials_with_refresh_token(
     _invoke_default_call()
     assert creds.refresh_calls == 1
     assert token_file.read_text(encoding="utf-8") == creds.to_json()
+
+
+def test_refresh_error_falls_back_to_oauth(monkeypatch, draft_paths) -> None:
+    token_file, _, _ = draft_paths
+    token_file.write_text("old-token", encoding="utf-8")
+    stale_creds = FakeCreds(valid=False, expired=True, refresh_token="refresh")
+    oauth_creds = FakeCreds(valid=True, payload='{"token":"oauth-token"}')
+    flow = FakeFlow(oauth_creds)
+    flow_factory = MagicMock(return_value=flow)
+
+    def _refresh_raises(_request) -> None:
+        stale_creds.refresh_calls += 1
+        raise RefreshError("invalid_grant")
+
+    stale_creds.refresh = _refresh_raises
+
+    monkeypatch.setattr(
+        gmail_draft.Credentials,
+        "from_authorized_user_file",
+        lambda *_args, **_kwargs: stale_creds,
+    )
+    monkeypatch.setattr(
+        gmail_draft.InstalledAppFlow, "from_client_secrets_file", flow_factory
+    )
+    service = _service_with_draft_response()
+    _patch_build(monkeypatch, service)
+
+    _invoke_default_call()
+    assert stale_creds.refresh_calls == 1
+    assert flow.run_calls == 1
+    assert token_file.read_text(encoding="utf-8") == oauth_creds.to_json()
 
 
 def test_runs_oauth_flow_when_token_is_missing(monkeypatch, draft_paths) -> None:

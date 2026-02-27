@@ -9,7 +9,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
 from src.core.clients.llm_client import build_chat_model
-from src.tools import add, multiply, subtract
+from src.tools import AGENT_TOOLS
 
 load_dotenv()
 
@@ -22,7 +22,7 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
 
-tools = [add, subtract, multiply]
+tools = AGENT_TOOLS
 
 
 def build_model_call(llm):
@@ -46,7 +46,7 @@ def build_app(prompt_on_multiple: bool = True):
     llm = build_chat_model(tools, prompt_on_multiple=prompt_on_multiple)
     graph = StateGraph(AgentState)
     graph.add_node("agent", build_model_call(llm))
-    graph.add_node("tools", ToolNode(tools=tools))
+    graph.add_node("tools", ToolNode(tools=tools, handle_tool_errors=True))
     graph.set_entry_point("agent")
     graph.add_conditional_edges(
         "agent",
