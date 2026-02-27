@@ -74,3 +74,131 @@ def test_gmail_create_draft_wrapper_uses_default_sender(monkeypatch) -> None:
     )
 
     assert inner.call_args.kwargs["email_from"] == "me"
+
+
+def test_gmail_send_email_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "sent-1", "threadId": "thread-1"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_send_email_impl", inner)
+
+    result = gmail_tool.gmail_send_email.invoke(
+        {
+            "email_to": "to@example.com",
+            "email_from": "from@example.com",
+            "subject": "Subject",
+            "body": "Body",
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        email_to="to@example.com",
+        email_from="from@example.com",
+        subject="Subject",
+        body="Body",
+    )
+
+
+def test_gmail_send_email_wrapper_uses_default_sender(monkeypatch) -> None:
+    inner = MagicMock(return_value={"id": "sent-2", "threadId": "thread-2"})
+    monkeypatch.setattr(gmail_tool, "gmail_send_email_impl", inner)
+
+    gmail_tool.gmail_send_email.invoke(
+        {
+            "email_to": "to@example.com",
+            "subject": "Subject",
+            "body": "Body",
+        }
+    )
+
+    assert inner.call_args.kwargs["email_from"] == "me"
+
+
+def test_gmail_create_draft_with_attachments_wrapper_forwards_payload(
+    monkeypatch,
+) -> None:
+    payload = {"id": "draft-attach-1", "message": {"id": "msg-1"}}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_create_draft_with_attachments_impl", inner)
+
+    result = gmail_tool.gmail_create_draft_with_attachments.invoke(
+        {
+            "email_to": "to@example.com",
+            "email_from": "from@example.com",
+            "subject": "Subject",
+            "body": "Body",
+            "attachment_paths": ["/tmp/a.txt", "/tmp/b.csv"],
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        email_to="to@example.com",
+        email_from="from@example.com",
+        subject="Subject",
+        body="Body",
+        attachment_paths=["/tmp/a.txt", "/tmp/b.csv"],
+    )
+
+
+def test_gmail_create_draft_with_attachments_wrapper_uses_default_sender(
+    monkeypatch,
+) -> None:
+    inner = MagicMock(return_value={"id": "draft-attach-2", "message": {"id": "msg-2"}})
+    monkeypatch.setattr(gmail_tool, "gmail_create_draft_with_attachments_impl", inner)
+
+    gmail_tool.gmail_create_draft_with_attachments.invoke(
+        {
+            "email_to": "to@example.com",
+            "subject": "Subject",
+            "body": "Body",
+            "attachment_paths": ["/tmp/a.txt"],
+        }
+    )
+
+    assert inner.call_args.kwargs["email_from"] == "me"
+
+
+def test_gmail_send_email_with_attachments_wrapper_forwards_payload(
+    monkeypatch,
+) -> None:
+    payload = {"id": "sent-attach-1", "threadId": "thread-1"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_send_email_with_attachments_impl", inner)
+
+    result = gmail_tool.gmail_send_email_with_attachments.invoke(
+        {
+            "email_to": "to@example.com",
+            "email_from": "from@example.com",
+            "subject": "Subject",
+            "body": "Body",
+            "attachment_paths": ["/tmp/a.txt", "/tmp/b.csv"],
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        email_to="to@example.com",
+        email_from="from@example.com",
+        subject="Subject",
+        body="Body",
+        attachment_paths=["/tmp/a.txt", "/tmp/b.csv"],
+    )
+
+
+def test_gmail_send_email_with_attachments_wrapper_uses_default_sender(
+    monkeypatch,
+) -> None:
+    inner = MagicMock(return_value={"id": "sent-attach-2", "threadId": "thread-2"})
+    monkeypatch.setattr(gmail_tool, "gmail_send_email_with_attachments_impl", inner)
+
+    gmail_tool.gmail_send_email_with_attachments.invoke(
+        {
+            "email_to": "to@example.com",
+            "subject": "Subject",
+            "body": "Body",
+            "attachment_paths": ["/tmp/a.txt"],
+        }
+    )
+
+    assert inner.call_args.kwargs["email_from"] == "me"
