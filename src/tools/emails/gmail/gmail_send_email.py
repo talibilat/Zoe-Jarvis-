@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 from email.message import EmailMessage
 
@@ -21,15 +22,46 @@ CREDS_FILE = (
 ).strip() or "credentials.json"
 
 
+def _read_declared_scopes(token_path: str) -> set[str]:
+    try:
+        with open(token_path, "r", encoding="utf-8") as token:
+            payload = json.load(token)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return set()
+
+    declared_scopes = payload.get("scopes") or payload.get("scope")
+    if isinstance(declared_scopes, str):
+        return {scope for scope in declared_scopes.split() if scope}
+    if isinstance(declared_scopes, list):
+        return {str(scope).strip() for scope in declared_scopes if str(scope).strip()}
+
+    return set()
+
+
+def _token_has_required_scopes(token_path: str, required_scopes: list[str]) -> bool:
+    declared_scopes = _read_declared_scopes(token_path)
+    return bool(declared_scopes) and set(required_scopes).issubset(declared_scopes)
+
+
+def _format_send_http_error(error: HttpError) -> str:
+    status = getattr(getattr(error, "resp", None), "status", "unknown")
+    details = str(error)
+    if status == 403 and "insufficient authentication scopes" in details.lower():
+        return (
+            "Gmail send failed due to missing OAuth scopes. Re-authenticate with "
+            "gmail.compose by deleting token.json (or using a different "
+            "GMAIL_TOKEN_FILE) and retry."
+        )
+    return f"Gmail send failed (HTTP {status}): {details}"
+
+
 def _load_compose_credentials() -> Credentials:
     creds = None
 
-    if os.path.exists(TOKEN_FILE):
+    if os.path.exists(TOKEN_FILE) and _token_has_required_scopes(TOKEN_FILE, SCOPES):
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
         except Exception:
-            creds = None
-        if creds and not creds.has_scopes(SCOPES):
             creds = None
 
     if not creds or not creds.valid:
@@ -59,7 +91,7 @@ def gmail_send_email(
     email_from: str,
     subject: str,
     body: str,
-) -> dict | None:
+) -> dict:
     """Send a Gmail email and return the send response payload."""
     creds = _load_compose_credentials()
 
@@ -84,5 +116,4 @@ def gmail_send_email(
         return sent_message
 
     except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
+        raise RuntimeError(_format_send_http_error(error)) from error

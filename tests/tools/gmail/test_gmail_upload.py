@@ -4,9 +4,11 @@ import base64
 from email.parser import BytesParser
 from email.policy import default
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from googleapiclient.errors import HttpError
 
 import src.tools.emails.gmail.gmail_upload as gmail_upload
 
@@ -115,3 +117,52 @@ def test_send_email_with_attachments_uses_messages_send(
     attachments = list(parsed.iter_attachments())
     assert len(attachments) == 1
     assert attachments[0].get_filename() == "notes.csv"
+
+
+def test_create_draft_with_attachments_returns_none_on_http_error(
+    monkeypatch, tmp_path: Path
+) -> None:
+    attachment = tmp_path / "report.txt"
+    attachment.write_text("hello world", encoding="utf-8")
+
+    service = _draft_service()
+    service.users.return_value.drafts.return_value.create.return_value.execute.side_effect = HttpError(
+        resp=SimpleNamespace(status=500, reason="boom"), content=b""
+    )
+
+    monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
+    monkeypatch.setattr(gmail_upload, "build", lambda *_args, **_kwargs: service)
+
+    result = gmail_upload.gmail_create_draft_with_attachments(
+        email_to="to@example.com",
+        email_from="from@example.com",
+        subject="Subject",
+        body="Body text",
+        attachment_paths=[str(attachment)],
+    )
+
+    assert result is None
+
+
+def test_send_email_with_attachments_raises_on_http_error(
+    monkeypatch, tmp_path: Path
+) -> None:
+    attachment = tmp_path / "notes.csv"
+    attachment.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    service = _sent_service()
+    service.users.return_value.messages.return_value.send.return_value.execute.side_effect = HttpError(
+        resp=SimpleNamespace(status=500, reason="boom"), content=b""
+    )
+
+    monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
+    monkeypatch.setattr(gmail_upload, "build", lambda *_args, **_kwargs: service)
+
+    with pytest.raises(RuntimeError, match="Gmail attachment send failed"):
+        gmail_upload.gmail_send_email_with_attachments(
+            email_to="to@example.com",
+            email_from="from@example.com",
+            subject="Data",
+            body="Attached",
+            attachment_paths=[str(attachment)],
+        )

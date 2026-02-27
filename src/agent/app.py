@@ -14,7 +14,11 @@ from src.tools import AGENT_TOOLS
 load_dotenv()
 
 SYSTEM_PROMPT = SystemMessage(
-    content="You are my AI assistant. Use tools when needed and answer clearly."
+    content=(
+        "You are my AI assistant. Use tools when needed and answer clearly. "
+        "Never claim an action succeeded unless a tool result explicitly confirms "
+        "success. If a tool errors, acknowledge the failure and explain what to do next."
+    )
 )
 
 

@@ -3,7 +3,11 @@ from __future__ import annotations
 import base64
 import importlib
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
+from googleapiclient.errors import HttpError
 
 gmail_send = importlib.import_module("src.tools.emails.gmail.gmail_send_email")
 
@@ -70,7 +74,10 @@ def test_send_uses_existing_valid_token_without_oauth(
     backup_file = tmp_path / "token.json.bak"
     creds_file = tmp_path / "credentials.json"
 
-    token_file.write_text("old-token", encoding="utf-8")
+    token_file.write_text(
+        '{"scopes":["https://www.googleapis.com/auth/gmail.compose"]}',
+        encoding="utf-8",
+    )
     creds_file.write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(gmail_send, "TOKEN_FILE", str(token_file))
@@ -110,7 +117,10 @@ def test_send_calls_messages_send_with_encoded_payload(
     backup_file = tmp_path / "token.json.bak"
     creds_file = tmp_path / "credentials.json"
 
-    token_file.write_text("old-token", encoding="utf-8")
+    token_file.write_text(
+        '{"scopes":["https://www.googleapis.com/auth/gmail.compose"]}',
+        encoding="utf-8",
+    )
     creds_file.write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(gmail_send, "TOKEN_FILE", str(token_file))
@@ -147,3 +157,84 @@ def test_send_calls_messages_send_with_encoded_payload(
     assert "From: from@example.com" in decoded
     assert "Subject: Hello" in decoded
     assert "This is a body" in decoded
+
+
+def test_send_raises_runtime_error_on_http_error(monkeypatch, tmp_path: Path) -> None:
+    token_file = tmp_path / "token.json"
+    backup_file = tmp_path / "token.json.bak"
+    creds_file = tmp_path / "credentials.json"
+
+    token_file.write_text(
+        '{"scopes":["https://www.googleapis.com/auth/gmail.compose"]}',
+        encoding="utf-8",
+    )
+    creds_file.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(gmail_send, "TOKEN_FILE", str(token_file))
+    monkeypatch.setattr(gmail_send, "TOKEN_BACKUP_FILE", str(backup_file))
+    monkeypatch.setattr(gmail_send, "CREDS_FILE", str(creds_file))
+
+    creds = FakeCreds(valid=True)
+    monkeypatch.setattr(
+        gmail_send.Credentials,
+        "from_authorized_user_file",
+        lambda *_args, **_kwargs: creds,
+    )
+    monkeypatch.setattr(
+        gmail_send.InstalledAppFlow,
+        "from_client_secrets_file",
+        MagicMock(),
+    )
+
+    service = _service_with_send_response()
+    service.users.return_value.messages.return_value.send.return_value.execute.side_effect = HttpError(
+        resp=SimpleNamespace(status=500, reason="boom"), content=b""
+    )
+    monkeypatch.setattr(gmail_send, "build", lambda *_args, **_kwargs: service)
+
+    with pytest.raises(RuntimeError, match="Gmail send failed"):
+        _invoke_default_call()
+
+
+def test_send_reauths_when_token_missing_compose_scope(
+    monkeypatch, tmp_path: Path
+) -> None:
+    token_file = tmp_path / "token.json"
+    backup_file = tmp_path / "token.json.bak"
+    creds_file = tmp_path / "credentials.json"
+
+    token_file.write_text(
+        '{"scopes":["https://www.googleapis.com/auth/gmail.readonly"]}',
+        encoding="utf-8",
+    )
+    creds_file.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(gmail_send, "TOKEN_FILE", str(token_file))
+    monkeypatch.setattr(gmail_send, "TOKEN_BACKUP_FILE", str(backup_file))
+    monkeypatch.setattr(gmail_send, "CREDS_FILE", str(creds_file))
+
+    from_file_mock = MagicMock(return_value=FakeCreds(valid=True))
+    monkeypatch.setattr(
+        gmail_send.Credentials,
+        "from_authorized_user_file",
+        from_file_mock,
+    )
+
+    oauth_creds = FakeCreds(valid=True, payload='{"token":"oauth-token"}')
+    oauth_factory = MagicMock(return_value=FakeFlow(oauth_creds))
+    monkeypatch.setattr(
+        gmail_send.InstalledAppFlow,
+        "from_client_secrets_file",
+        oauth_factory,
+    )
+
+    service = _service_with_send_response()
+    build_mock = MagicMock(return_value=service)
+    monkeypatch.setattr(gmail_send, "build", build_mock)
+
+    result = _invoke_default_call()
+
+    assert result == {"id": "sent-1", "threadId": "thread-1"}
+    from_file_mock.assert_not_called()
+    oauth_factory.assert_called_once_with(str(creds_file), gmail_send.SCOPES)
+    assert build_mock.call_args.kwargs["credentials"] is oauth_creds
