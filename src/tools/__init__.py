@@ -2,6 +2,7 @@
 
 from .emails.email_main import EMAIL_TOOLS
 from .emails.gmail import (
+    gmail_chatty_threads,
     gmail_create_draft,
     gmail_create_draft_with_attachments,
     gmail_send_email,
@@ -21,6 +22,7 @@ __all__ = [
     "gmail_total_counts",
     "gmail_unread_count",
     "gmail_unread_summary",
+    "gmail_chatty_threads",
     "gmail_create_draft",
     "gmail_send_email",
     "gmail_create_draft_with_attachments",

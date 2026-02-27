@@ -38,6 +38,36 @@ def test_gmail_unread_summary_wrapper_forwards_params(monkeypatch) -> None:
     inner.assert_called_once_with(limit="all", query="is:unread category:primary")
 
 
+def test_gmail_chatty_threads_wrapper_forwards_params(monkeypatch) -> None:
+    payload = [{"thread_id": "t1", "subject": "Quarterly Update", "message_count": 4}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "show_chatty_threads_impl", inner)
+
+    result = gmail_tool.gmail_chatty_threads.invoke(
+        {"min_messages": 4, "max_threads": 50, "query": "label:inbox"}
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        min_messages=4,
+        max_threads=50,
+        query="label:inbox",
+    )
+
+
+def test_gmail_chatty_threads_wrapper_uses_defaults(monkeypatch) -> None:
+    inner = MagicMock(return_value=[])
+    monkeypatch.setattr(gmail_tool, "show_chatty_threads_impl", inner)
+
+    gmail_tool.gmail_chatty_threads.invoke({})
+
+    inner.assert_called_once_with(
+        min_messages=3,
+        max_threads=100,
+        query=None,
+    )
+
+
 def test_gmail_create_draft_wrapper_forwards_payload(monkeypatch) -> None:
     payload = {"id": "draft-1", "message": {"id": "msg-1"}}
     inner = MagicMock(return_value=payload)

@@ -15,6 +15,7 @@ def test_gmail_tools_registry_contains_expected_tools() -> None:
         "gmail_total_counts",
         "gmail_unread_count",
         "gmail_unread_summary",
+        "gmail_chatty_threads",
         "gmail_create_draft",
         "gmail_send_email",
         "gmail_create_draft_with_attachments",

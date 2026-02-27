@@ -76,6 +76,13 @@ Standard send helper for non-attachment emails.
 - `gmail_send_email(email_to, email_from, subject, body)`  
   Builds a plain MIME message and sends it using Gmail `users().messages().send`.
 
+### `gmail_threads.py`
+Thread inspection helper for longer conversations.
+
+#### Functions
+- `show_chatty_threads(min_messages=3, max_threads=100, query=None)`  
+  Returns thread metadata (`thread_id`, `subject`, `message_count`) for threads meeting the message-count threshold and containing a subject line.
+
 ## Environment / Setup
 - Enable the Gmail API and download OAuth credentials (`credentials.json`).
 - On first run a browser window opens to authorize access; a `token.json` cache is saved for future calls.

@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from .gmail_count import count_total_emails
 from .gmail_draft import gmail_create_draft as gmail_create_draft_impl
 from .gmail_send_email import gmail_send_email as gmail_send_email_impl
+from .gmail_threads import show_chatty_threads as show_chatty_threads_impl
 from .gmail_upload import (
     gmail_create_draft_with_attachments as gmail_create_draft_with_attachments_impl,
     gmail_send_email_with_attachments as gmail_send_email_with_attachments_impl,
@@ -39,6 +40,21 @@ def gmail_unread_summary(
     """Return unread Gmail email metadata (subject, sender, date, snippet)."""
 
     return get_unread_email_summary(limit=limit, query=query)
+
+
+@tool
+def gmail_chatty_threads(
+    min_messages: int = 3,
+    max_threads: int = 100,
+    query: Optional[str] = None,
+) -> List[Dict[str, int | str]]:
+    """Return thread metadata for longer conversations (default: >=3 messages)."""
+
+    return show_chatty_threads_impl(
+        min_messages=min_messages,
+        max_threads=max_threads,
+        query=query,
+    )
 
 
 @tool
