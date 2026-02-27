@@ -38,6 +38,134 @@ def test_gmail_unread_summary_wrapper_forwards_params(monkeypatch) -> None:
     inner.assert_called_once_with(limit="all", query="is:unread category:primary")
 
 
+def test_gmail_list_labels_wrapper_forwards_filter(monkeypatch) -> None:
+    payload = [{"id": "Label_1", "name": "Projects", "type": "USER"}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_list_labels_impl", inner)
+
+    result = gmail_tool.gmail_list_labels.invoke({"label_type": "USER"})
+
+    assert result == payload
+    inner.assert_called_once_with(label_type="USER")
+
+
+def test_gmail_create_label_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "Label_1", "name": "Projects"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_create_label_impl", inner)
+
+    result = gmail_tool.gmail_create_label.invoke({"name": "Projects"})
+
+    assert result == payload
+    inner.assert_called_once_with(
+        name="Projects",
+        label_list_visibility="labelShow",
+        message_list_visibility="show",
+    )
+
+
+def test_gmail_delete_label_wrapper_forwards_payload(monkeypatch) -> None:
+    inner = MagicMock(return_value=True)
+    monkeypatch.setattr(gmail_tool, "gmail_delete_label_impl", inner)
+
+    result = gmail_tool.gmail_delete_label.invoke({"label": "Projects"})
+
+    assert result is True
+    inner.assert_called_once_with(label="Projects")
+
+
+def test_gmail_modify_message_labels_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "m1", "labelIds": ["Label_1"]}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_modify_message_labels_impl", inner)
+
+    result = gmail_tool.gmail_modify_message_labels.invoke(
+        {
+            "message_id": "m1",
+            "add_labels": ["Projects"],
+            "remove_labels": ["INBOX"],
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        message_id="m1",
+        add_labels=["Projects"],
+        remove_labels=["INBOX"],
+    )
+
+
+def test_gmail_modify_thread_labels_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "t1", "historyId": "123"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "gmail_modify_thread_labels_impl", inner)
+
+    result = gmail_tool.gmail_modify_thread_labels.invoke(
+        {
+            "thread_id": "t1",
+            "add_labels": ["Projects"],
+            "remove_labels": [],
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        thread_id="t1",
+        add_labels=["Projects"],
+        remove_labels=[],
+    )
+
+
+def test_gmail_search_messages_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = [{"id": "m1", "thread_id": "t1"}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "search_messages_impl", inner)
+
+    result = gmail_tool.gmail_search_messages.invoke(
+        {
+            "query": "from:boss@example.com",
+            "label_ids": ["INBOX"],
+            "max_results": 25,
+            "include_spam_trash": True,
+            "include_details": False,
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        query="from:boss@example.com",
+        label_ids=["INBOX"],
+        max_results=25,
+        include_spam_trash=True,
+        include_details=False,
+    )
+
+
+def test_gmail_search_threads_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = [{"thread_id": "t1", "message_count": 2}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "search_threads_impl", inner)
+
+    result = gmail_tool.gmail_search_threads.invoke(
+        {
+            "query": "in:inbox",
+            "label_ids": ["INBOX"],
+            "max_results": 10,
+            "include_spam_trash": False,
+            "include_details": True,
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        query="in:inbox",
+        label_ids=["INBOX"],
+        max_results=10,
+        include_spam_trash=False,
+        include_details=True,
+    )
+
+
 def test_gmail_chatty_threads_wrapper_forwards_params(monkeypatch) -> None:
     payload = [{"thread_id": "t1", "subject": "Quarterly Update", "message_count": 4}]
     inner = MagicMock(return_value=payload)

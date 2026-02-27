@@ -6,6 +6,17 @@ from langchain_core.tools import tool
 
 from .gmail_count import count_total_emails
 from .gmail_draft import gmail_create_draft as gmail_create_draft_impl
+from .gmail_labels import (
+    gmail_create_label as gmail_create_label_impl,
+    gmail_delete_label as gmail_delete_label_impl,
+    gmail_list_labels as gmail_list_labels_impl,
+    gmail_modify_message_labels as gmail_modify_message_labels_impl,
+    gmail_modify_thread_labels as gmail_modify_thread_labels_impl,
+)
+from .gmail_search import (
+    search_messages as search_messages_impl,
+    search_threads as search_threads_impl,
+)
 from .gmail_send_email import gmail_send_email as gmail_send_email_impl
 from .gmail_threads import show_chatty_threads as show_chatty_threads_impl
 from .gmail_upload import (
@@ -40,6 +51,103 @@ def gmail_unread_summary(
     """Return unread Gmail email metadata (subject, sender, date, snippet)."""
 
     return get_unread_email_summary(limit=limit, query=query)
+
+
+@tool
+def gmail_list_labels(label_type: Optional[str] = None) -> List[Dict[str, str]]:
+    """Return Gmail labels. Optional filter: label_type SYSTEM or USER."""
+
+    return gmail_list_labels_impl(label_type=label_type)
+
+
+@tool
+def gmail_create_label(
+    name: str,
+    label_list_visibility: str = "labelShow",
+    message_list_visibility: str = "show",
+) -> Dict | None:
+    """Create a Gmail label and return the label payload."""
+
+    return gmail_create_label_impl(
+        name=name,
+        label_list_visibility=label_list_visibility,
+        message_list_visibility=message_list_visibility,
+    )
+
+
+@tool
+def gmail_delete_label(label: str) -> bool:
+    """Delete a Gmail label by ID or exact name."""
+
+    return gmail_delete_label_impl(label=label)
+
+
+@tool
+def gmail_modify_message_labels(
+    message_id: str,
+    add_labels: Optional[List[str]] = None,
+    remove_labels: Optional[List[str]] = None,
+) -> Dict | None:
+    """Add/remove labels on a Gmail message using label IDs or names."""
+
+    return gmail_modify_message_labels_impl(
+        message_id=message_id,
+        add_labels=add_labels,
+        remove_labels=remove_labels,
+    )
+
+
+@tool
+def gmail_modify_thread_labels(
+    thread_id: str,
+    add_labels: Optional[List[str]] = None,
+    remove_labels: Optional[List[str]] = None,
+) -> Dict | None:
+    """Add/remove labels on all existing messages in a Gmail thread."""
+
+    return gmail_modify_thread_labels_impl(
+        thread_id=thread_id,
+        add_labels=add_labels,
+        remove_labels=remove_labels,
+    )
+
+
+@tool
+def gmail_search_messages(
+    query: Optional[str] = None,
+    label_ids: Optional[List[str]] = None,
+    max_results: int = 50,
+    include_spam_trash: bool = False,
+    include_details: bool = True,
+) -> List[Dict[str, str]]:
+    """Search Gmail messages by query and/or labelIds."""
+
+    return search_messages_impl(
+        query=query,
+        label_ids=label_ids,
+        max_results=max_results,
+        include_spam_trash=include_spam_trash,
+        include_details=include_details,
+    )
+
+
+@tool
+def gmail_search_threads(
+    query: Optional[str] = None,
+    label_ids: Optional[List[str]] = None,
+    max_results: int = 50,
+    include_spam_trash: bool = False,
+    include_details: bool = True,
+) -> List[Dict[str, int | str]]:
+    """Search Gmail threads by query and/or labelIds."""
+
+    return search_threads_impl(
+        query=query,
+        label_ids=label_ids,
+        max_results=max_results,
+        include_spam_trash=include_spam_trash,
+        include_details=include_details,
+    )
 
 
 @tool

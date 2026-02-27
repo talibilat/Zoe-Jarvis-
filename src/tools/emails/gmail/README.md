@@ -76,6 +76,30 @@ Standard send helper for non-attachment emails.
 - `gmail_send_email(email_to, email_from, subject, body)`  
   Builds a plain MIME message and sends it using Gmail `users().messages().send`.
 
+### `gmail_labels.py`
+Label management helpers for Gmail labels, messages, and threads.
+
+#### Functions
+- `gmail_list_labels(label_type=None)`  
+  Lists labels, optionally filtered by label type (`SYSTEM` or `USER`).
+- `gmail_create_label(name, label_list_visibility='labelShow', message_list_visibility='show')`  
+  Creates a custom label.
+- `gmail_delete_label(label)`  
+  Deletes a label by ID or exact name.
+- `gmail_modify_message_labels(message_id, add_labels=None, remove_labels=None)`  
+  Adds/removes labels on a single message.
+- `gmail_modify_thread_labels(thread_id, add_labels=None, remove_labels=None)`  
+  Adds/removes labels on all existing messages in a thread.
+
+### `gmail_search.py`
+Search helpers using Gmail API query syntax (`q`) and label filters (`labelIds`).
+
+#### Functions
+- `search_messages(query=None, label_ids=None, max_results=50, include_spam_trash=False, include_details=True)`  
+  Searches messages and returns IDs (or metadata details when `include_details=True`).
+- `search_threads(query=None, label_ids=None, max_results=50, include_spam_trash=False, include_details=True)`  
+  Searches threads and returns thread IDs (or metadata + message counts when `include_details=True`).
+
 ### `gmail_threads.py`
 Thread inspection helper for longer conversations.
 
