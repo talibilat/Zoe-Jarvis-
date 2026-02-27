@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
+from googleapiclient.errors import HttpError
 
 import src.tools.emails.gmail.gmail_labels as gmail_labels
 
@@ -195,3 +198,87 @@ def test_gmail_modify_thread_labels_requires_non_empty_changes(monkeypatch) -> N
 
     with pytest.raises(ValueError, match="at least one label"):
         gmail_labels.gmail_modify_thread_labels(thread_id="t1")
+
+
+def test_gmail_delete_label_rejects_empty_label(monkeypatch) -> None:
+    service = _FakeService(
+        labels_resource=_FakeLabelsResource(list_payload={"labels": []})
+    )
+    monkeypatch.setattr(gmail_labels, "_gmail_service", lambda: service)
+
+    with pytest.raises(ValueError, match="label must not be empty"):
+        gmail_labels.gmail_delete_label("   ")
+
+
+def test_gmail_create_label_rejects_empty_name(monkeypatch) -> None:
+    service = _FakeService(labels_resource=_FakeLabelsResource())
+    monkeypatch.setattr(gmail_labels, "_gmail_service", lambda: service)
+
+    with pytest.raises(ValueError, match="cannot be empty"):
+        gmail_labels.gmail_create_label(name=" ")
+
+
+def test_gmail_create_label_raises_runtime_error_on_http_error(monkeypatch) -> None:
+    class _FailingLabelsResource(_FakeLabelsResource):
+        def create(self, **kwargs):
+            self.create_calls.append(kwargs)
+
+            class _FailingRequest:
+                def execute(self):
+                    raise HttpError(
+                        resp=SimpleNamespace(status=500, reason="boom"),
+                        content=b"",
+                    )
+
+            return _FailingRequest()
+
+    service = _FakeService(labels_resource=_FailingLabelsResource())
+    monkeypatch.setattr(gmail_labels, "_gmail_service", lambda: service)
+
+    with pytest.raises(RuntimeError, match="creating label"):
+        gmail_labels.gmail_create_label(name="Important")
+
+
+def test_gmail_modify_message_labels_raises_on_unknown_label(monkeypatch) -> None:
+    service = _FakeService(
+        labels_resource=_FakeLabelsResource(list_payload={"labels": []})
+    )
+    monkeypatch.setattr(gmail_labels, "_gmail_service", lambda: service)
+
+    with pytest.raises(ValueError, match="Unknown Gmail label"):
+        gmail_labels.gmail_modify_message_labels(
+            message_id="m1",
+            add_labels=["DoesNotExist"],
+        )
+
+
+def test_gmail_modify_thread_labels_raises_runtime_error_on_http_error(
+    monkeypatch,
+) -> None:
+    class _FailingThreadsResource(_FakeThreadsResource):
+        def modify(self, **kwargs):
+            self.modify_calls.append(kwargs)
+
+            class _FailingRequest:
+                def execute(self):
+                    raise HttpError(
+                        resp=SimpleNamespace(status=500, reason="boom"),
+                        content=b"",
+                    )
+
+            return _FailingRequest()
+
+    labels_resource = _FakeLabelsResource(
+        list_payload={"labels": [{"id": "Label_1", "name": "Projects", "type": "USER"}]}
+    )
+    service = _FakeService(
+        labels_resource=labels_resource,
+        threads_resource=_FailingThreadsResource(),
+    )
+    monkeypatch.setattr(gmail_labels, "_gmail_service", lambda: service)
+
+    with pytest.raises(RuntimeError, match="modifying thread labels"):
+        gmail_labels.gmail_modify_thread_labels(
+            thread_id="t1",
+            add_labels=["Projects"],
+        )

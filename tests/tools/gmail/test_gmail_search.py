@@ -212,3 +212,68 @@ def test_search_threads_without_details_skips_get_calls(monkeypatch) -> None:
 
     assert result == [{"thread_id": "t1"}]
     assert threads.get_calls == []
+
+
+def test_search_messages_clamps_min_results_and_omits_blank_filters(
+    monkeypatch,
+) -> None:
+    messages = _FakeMessagesResource(
+        list_payload={"messages": []},
+        details_by_id={},
+    )
+    threads = _FakeThreadsResource(list_payload={"threads": []}, details_by_id={})
+    _patch_service(
+        monkeypatch,
+        _FakeService(messages_resource=messages, threads_resource=threads),
+    )
+
+    gmail_search.search_messages(
+        query="   ",
+        label_ids=["INBOX", " ", "INBOX"],
+        max_results=0,
+        include_spam_trash=False,
+        include_details=False,
+    )
+
+    call = messages.list_calls[0]
+    assert call["maxResults"] == 1
+    assert call["labelIds"] == ["INBOX"]
+    assert "q" not in call
+    assert "includeSpamTrash" not in call
+
+
+def test_search_threads_uses_default_header_values_when_missing(monkeypatch) -> None:
+    messages = _FakeMessagesResource(list_payload={"messages": []}, details_by_id={})
+    threads = _FakeThreadsResource(
+        list_payload={"threads": [{"id": "t1"}]},
+        details_by_id={
+            "t1": {
+                "id": "t1",
+                "snippet": "",
+                "messages": [
+                    {
+                        "payload": {
+                            "headers": [],
+                        }
+                    }
+                ],
+            }
+        },
+    )
+    _patch_service(
+        monkeypatch,
+        _FakeService(messages_resource=messages, threads_resource=threads),
+    )
+
+    result = gmail_search.search_threads(include_details=True)
+
+    assert result == [
+        {
+            "thread_id": "t1",
+            "message_count": 1,
+            "subject": "(no subject)",
+            "from": "(unknown sender)",
+            "date": "",
+            "snippet": "",
+        }
+    ]

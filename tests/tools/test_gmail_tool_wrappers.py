@@ -116,6 +116,137 @@ def test_gmail_modify_thread_labels_wrapper_forwards_payload(monkeypatch) -> Non
     )
 
 
+def test_gmail_enable_forwarding_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {
+        "forwarding_address": {
+            "forwardingEmail": "dest@example.com",
+            "verificationStatus": "accepted",
+        },
+        "auto_forwarding": {"enabled": True, "disposition": "trash"},
+    }
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "enable_forwarding_impl", inner)
+
+    result = gmail_tool.gmail_enable_forwarding.invoke(
+        {
+            "forwarding_email": "dest@example.com",
+            "disposition": "trash",
+            "enabled": True,
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        forwarding_email="dest@example.com",
+        disposition="trash",
+        enabled=True,
+    )
+
+
+def test_gmail_enable_forwarding_wrapper_uses_defaults(monkeypatch) -> None:
+    inner = MagicMock(return_value={"forwarding_address": {}, "auto_forwarding": None})
+    monkeypatch.setattr(gmail_tool, "enable_forwarding_impl", inner)
+
+    gmail_tool.gmail_enable_forwarding.invoke({"forwarding_email": "dest@example.com"})
+
+    inner.assert_called_once_with(
+        forwarding_email="dest@example.com",
+        disposition="trash",
+        enabled=True,
+    )
+
+
+def test_gmail_create_filter_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "f1"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "create_filter_impl", inner)
+
+    result = gmail_tool.gmail_create_filter.invoke(
+        {
+            "criteria": {"from": "sender@example.com"},
+            "action": {"removeLabelIds": ["INBOX"]},
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        criteria={"from": "sender@example.com"},
+        action={"removeLabelIds": ["INBOX"]},
+    )
+
+
+def test_gmail_list_filters_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = [{"id": "f1"}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "list_filters_impl", inner)
+
+    result = gmail_tool.gmail_list_filters.invoke({})
+
+    assert result == payload
+    inner.assert_called_once_with()
+
+
+def test_gmail_get_filter_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = {"id": "f1"}
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "get_filter_impl", inner)
+
+    result = gmail_tool.gmail_get_filter.invoke({"filter_id": "f1"})
+
+    assert result == payload
+    inner.assert_called_once_with(filter_id="f1")
+
+
+def test_gmail_delete_filter_wrapper_forwards_payload(monkeypatch) -> None:
+    inner = MagicMock(return_value=True)
+    monkeypatch.setattr(gmail_tool, "delete_filter_impl", inner)
+
+    result = gmail_tool.gmail_delete_filter.invoke({"filter_id": "f1"})
+
+    assert result is True
+    inner.assert_called_once_with(filter_id="f1")
+
+
+def test_gmail_list_messages_wrapper_forwards_payload(monkeypatch) -> None:
+    payload = [{"id": "m1", "thread_id": "t1"}]
+    inner = MagicMock(return_value=payload)
+    monkeypatch.setattr(gmail_tool, "list_messages_impl", inner)
+
+    result = gmail_tool.gmail_list_messages.invoke(
+        {
+            "label_ids": ["INBOX"],
+            "max_results": 20,
+            "include_spam_trash": True,
+            "include_details": False,
+            "query": "from:boss@example.com",
+        }
+    )
+
+    assert result == payload
+    inner.assert_called_once_with(
+        label_ids=["INBOX"],
+        max_results=20,
+        include_spam_trash=True,
+        include_details=False,
+        query="from:boss@example.com",
+    )
+
+
+def test_gmail_list_messages_wrapper_uses_defaults(monkeypatch) -> None:
+    inner = MagicMock(return_value=[])
+    monkeypatch.setattr(gmail_tool, "list_messages_impl", inner)
+
+    gmail_tool.gmail_list_messages.invoke({})
+
+    inner.assert_called_once_with(
+        label_ids=None,
+        max_results=50,
+        include_spam_trash=False,
+        include_details=True,
+        query=None,
+    )
+
+
 def test_gmail_search_messages_wrapper_forwards_payload(monkeypatch) -> None:
     payload = [{"id": "m1", "thread_id": "t1"}]
     inner = MagicMock(return_value=payload)
@@ -270,6 +401,39 @@ def test_gmail_send_email_wrapper_uses_default_sender(monkeypatch) -> None:
     )
 
     assert inner.call_args.kwargs["email_from"] == "me"
+
+
+def test_gmail_update_signature_wrapper_forwards_payload(monkeypatch) -> None:
+    inner = MagicMock(return_value="Updated Signature")
+    monkeypatch.setattr(gmail_tool, "update_signature_impl", inner)
+
+    result = gmail_tool.gmail_update_signature.invoke(
+        {
+            "signature": "Updated Signature",
+            "send_as_email": "team@example.com",
+            "display_name": "Team Mailer",
+        }
+    )
+
+    assert result == "Updated Signature"
+    inner.assert_called_once_with(
+        signature="Updated Signature",
+        send_as_email="team@example.com",
+        display_name="Team Mailer",
+    )
+
+
+def test_gmail_update_signature_wrapper_uses_defaults(monkeypatch) -> None:
+    inner = MagicMock(return_value="Automated Signature")
+    monkeypatch.setattr(gmail_tool, "update_signature_impl", inner)
+
+    gmail_tool.gmail_update_signature.invoke({})
+
+    inner.assert_called_once_with(
+        signature="Automated Signature",
+        send_as_email=None,
+        display_name=None,
+    )
 
 
 def test_gmail_create_draft_with_attachments_wrapper_forwards_payload(

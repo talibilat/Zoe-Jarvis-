@@ -76,6 +76,33 @@ Standard send helper for non-attachment emails.
 - `gmail_send_email(email_to, email_from, subject, body)`  
   Builds a plain MIME message and sends it using Gmail `users().messages().send`.
 
+### `gmail_forwarding.py`
+Forwarding helper to add forwarding addresses and enable auto-forwarding.
+
+#### Functions
+- `enable_forwarding(forwarding_email, disposition='trash', enabled=True)`  
+  Creates a forwarding address and, when it is verified, enables auto-forwarding with the requested disposition.
+
+### `gmail_filters.py`
+Filter helpers for Gmail settings filters.
+
+#### Functions
+- `create_filter(criteria, action)`  
+  Creates a filter using Gmail criteria/action payloads.
+- `list_filters()`  
+  Lists configured filters for the account.
+- `get_filter(filter_id)`  
+  Returns one filter payload by ID.
+- `delete_filter(filter_id)`  
+  Deletes a filter by ID and returns success status.
+
+### `gmail_signature.py`
+Send-as signature update helper for Gmail settings.
+
+#### Functions
+- `update_signature(signature='Automated Signature', send_as_email=None, display_name=None)`  
+  Updates signature for the selected send-as identity (defaults to primary alias) and returns the updated signature string.
+
 ### `gmail_labels.py`
 Label management helpers for Gmail labels, messages, and threads.
 
@@ -99,6 +126,13 @@ Search helpers using Gmail API query syntax (`q`) and label filters (`labelIds`)
   Searches messages and returns IDs (or metadata details when `include_details=True`).
 - `search_threads(query=None, label_ids=None, max_results=50, include_spam_trash=False, include_details=True)`  
   Searches threads and returns thread IDs (or metadata + message counts when `include_details=True`).
+
+### `gmail_messages.py`
+Message listing helper that mirrors `messages.list` behavior with inbox-first defaults.
+
+#### Functions
+- `list_messages(label_ids=None, max_results=50, include_spam_trash=False, include_details=True, query=None)`  
+  Lists messages; when `label_ids` is omitted it defaults to `["INBOX"]`.
 
 ### `gmail_threads.py`
 Thread inspection helper for longer conversations.

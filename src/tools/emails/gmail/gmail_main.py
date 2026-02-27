@@ -6,6 +6,13 @@ from langchain_core.tools import tool
 
 from .gmail_count import count_total_emails
 from .gmail_draft import gmail_create_draft as gmail_create_draft_impl
+from .gmail_filters import (
+    create_filter as create_filter_impl,
+    delete_filter as delete_filter_impl,
+    get_filter as get_filter_impl,
+    list_filters as list_filters_impl,
+)
+from .gmail_forwarding import enable_forwarding as enable_forwarding_impl
 from .gmail_labels import (
     gmail_create_label as gmail_create_label_impl,
     gmail_delete_label as gmail_delete_label_impl,
@@ -13,11 +20,13 @@ from .gmail_labels import (
     gmail_modify_message_labels as gmail_modify_message_labels_impl,
     gmail_modify_thread_labels as gmail_modify_thread_labels_impl,
 )
+from .gmail_messages import list_messages as list_messages_impl
 from .gmail_search import (
     search_messages as search_messages_impl,
     search_threads as search_threads_impl,
 )
 from .gmail_send_email import gmail_send_email as gmail_send_email_impl
+from .gmail_signature import update_signature as update_signature_impl
 from .gmail_threads import show_chatty_threads as show_chatty_threads_impl
 from .gmail_upload import (
     gmail_create_draft_with_attachments as gmail_create_draft_with_attachments_impl,
@@ -132,6 +141,25 @@ def gmail_search_messages(
 
 
 @tool
+def gmail_list_messages(
+    label_ids: Optional[List[str]] = None,
+    max_results: int = 50,
+    include_spam_trash: bool = False,
+    include_details: bool = True,
+    query: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """List Gmail messages (defaults to INBOX when label_ids is omitted)."""
+
+    return list_messages_impl(
+        label_ids=label_ids,
+        max_results=max_results,
+        include_spam_trash=include_spam_trash,
+        include_details=include_details,
+        query=query,
+    )
+
+
+@tool
 def gmail_search_threads(
     query: Optional[str] = None,
     label_ids: Optional[List[str]] = None,
@@ -196,6 +224,64 @@ def gmail_send_email(
         email_from=email_from,
         subject=subject,
         body=body,
+    )
+
+
+@tool
+def gmail_enable_forwarding(
+    forwarding_email: str,
+    disposition: str = "trash",
+    enabled: bool = True,
+) -> Dict | None:
+    """Enable Gmail auto-forwarding for a verified forwarding address."""
+
+    return enable_forwarding_impl(
+        forwarding_email=forwarding_email,
+        disposition=disposition,
+        enabled=enabled,
+    )
+
+
+@tool
+def gmail_create_filter(criteria: Dict, action: Dict) -> Dict | None:
+    """Create a Gmail filter with criteria and action payloads."""
+
+    return create_filter_impl(criteria=criteria, action=action)
+
+
+@tool
+def gmail_list_filters() -> List[Dict]:
+    """List Gmail filters for the authenticated user."""
+
+    return list_filters_impl()
+
+
+@tool
+def gmail_get_filter(filter_id: str) -> Dict | None:
+    """Get a Gmail filter by ID."""
+
+    return get_filter_impl(filter_id=filter_id)
+
+
+@tool
+def gmail_delete_filter(filter_id: str) -> bool:
+    """Delete a Gmail filter by ID."""
+
+    return delete_filter_impl(filter_id=filter_id)
+
+
+@tool
+def gmail_update_signature(
+    signature: str = "Automated Signature",
+    send_as_email: Optional[str] = None,
+    display_name: Optional[str] = None,
+) -> str | None:
+    """Update Gmail signature for a send-as identity and return updated value."""
+
+    return update_signature_impl(
+        signature=signature,
+        send_as_email=send_as_email,
+        display_name=display_name,
     )
 
 
