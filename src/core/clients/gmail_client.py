@@ -7,12 +7,19 @@ from typing import Optional
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from langchain_ollama import ChatOllama
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-CREDS_FILE = Path((os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json").strip() or "credentials.json")
-TOKEN_FILE = Path((os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json")
-TOKEN_BACKUP_FILE = Path((os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak").strip() or "token.json.bak")
+CREDS_FILE = Path(
+    (os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json").strip()
+    or "credentials.json"
+)
+TOKEN_FILE = Path(
+    (os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json"
+)
+TOKEN_BACKUP_FILE = Path(
+    (os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak").strip()
+    or "token.json.bak"
+)
 
 
 def gmail_client() -> Credentials:
@@ -34,5 +41,3 @@ def gmail_client() -> Credentials:
         TOKEN_FILE.write_text(creds.to_json())
 
     return creds
-
-

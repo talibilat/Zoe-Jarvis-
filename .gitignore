@@ -22,6 +22,7 @@ __pycache__/
 logging.txt
 .pytest_cache/
 .ipynb_checkpoints/
+.pre-commit-cache/
 
 # Local credentials
 credentials.json

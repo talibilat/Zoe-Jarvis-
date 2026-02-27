@@ -37,3 +37,8 @@ langchain_chroma
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+
+# Test and quality tooling
+pytest
+ruff
+pre-commit

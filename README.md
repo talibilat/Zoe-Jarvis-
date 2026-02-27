@@ -17,6 +17,20 @@ At startup, the app:
 - Prompts you to choose a provider when multiple verified providers are available
 - Uses `LLM_PROVIDER` directly if you want to force a provider without prompting
 
+## Testing and quality gates
+
+- Run all tests: `venv/bin/python -m pytest -q`
+- Run lint checks: `venv/bin/python -m ruff check main.py src tests`
+- Run formatting checks: `venv/bin/python -m ruff format --check main.py src tests`
+- Run full pre-push validation locally: `bash scripts/pre_push_checks.sh`
+
+To enforce checks automatically:
+
+1. Install hooks: `venv/bin/pre-commit install`
+2. Install pre-push hook: `venv/bin/pre-commit install --hook-type pre-push`
+
+After setup, pushes run the pre-push quality gate (lint, syntax, dependency health, and full pytest suite).
+
 ## Environment variables
 
 | Variable | Required | Purpose |

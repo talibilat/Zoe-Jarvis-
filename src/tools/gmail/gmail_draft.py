@@ -11,8 +11,13 @@ from googleapiclient.errors import HttpError
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
 TOKEN_FILE = (os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json"
-TOKEN_BACKUP_FILE = (os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak").strip() or "token.json.bak"
-CREDS_FILE = (os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json").strip() or "credentials.json"
+TOKEN_BACKUP_FILE = (
+    os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak"
+).strip() or "token.json.bak"
+CREDS_FILE = (
+    os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json"
+).strip() or "credentials.json"
+
 
 def gmail_create_draft(email_to, email_from, subject, body):
     """Create and insert a draft email.
@@ -30,9 +35,7 @@ def gmail_create_draft(email_to, email_from, subject, body):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                CREDS_FILE, SCOPES
-            )
+            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         if os.path.exists(TOKEN_FILE) and TOKEN_BACKUP_FILE != TOKEN_FILE:
@@ -60,13 +63,10 @@ def gmail_create_draft(email_to, email_from, subject, body):
         create_message = {"message": {"raw": encoded_message}}
         # pylint: disable=E1101
         draft = (
-            service.users()
-            .drafts()
-            .create(userId="me", body=create_message)
-            .execute()
+            service.users().drafts().create(userId="me", body=create_message).execute()
         )
 
-        print(f'Draft id: {draft["id"]}\\nDraft message: {draft["message"]}')
+        print(f"Draft id: {draft['id']}\\nDraft message: {draft['message']}")
 
     except HttpError as error:
         print(f"An error occurred: {error}")

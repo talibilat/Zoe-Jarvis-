@@ -63,7 +63,9 @@ def build_app(prompt_on_multiple: bool = True):
 ChunkHandler = Callable[[str], None]
 
 
-def stream_agent_response(app, conversation_history: Sequence[BaseMessage], on_chunk: ChunkHandler) -> List[BaseMessage]:
+def stream_agent_response(
+    app, conversation_history: Sequence[BaseMessage], on_chunk: ChunkHandler
+) -> List[BaseMessage]:
     """Stream the agent response and return the updated conversation history."""
 
     last_content = ""
@@ -82,7 +84,11 @@ def stream_agent_response(app, conversation_history: Sequence[BaseMessage], on_c
         if not isinstance(ai_message, AIMessage):
             continue
 
-        content = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+        content = (
+            ai_message.content
+            if isinstance(ai_message.content, str)
+            else str(ai_message.content)
+        )
         new_text = content[len(last_content) :]
         last_content = content
         if new_text:
@@ -94,5 +100,9 @@ def stream_agent_response(app, conversation_history: Sequence[BaseMessage], on_c
 def get_last_ai_text(messages: Sequence[BaseMessage]) -> str:
     for message in reversed(messages):
         if isinstance(message, AIMessage):
-            return message.content if isinstance(message.content, str) else str(message.content)
+            return (
+                message.content
+                if isinstance(message.content, str)
+                else str(message.content)
+            )
     return ""

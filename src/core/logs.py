@@ -16,7 +16,9 @@ def log_conversation(messages: Sequence[BaseMessage]) -> Path:
         file.write("Your Conversation Log:\n")
         for message in messages:
             content = (
-                message.content if isinstance(message.content, str) else str(message.content)
+                message.content
+                if isinstance(message.content, str)
+                else str(message.content)
             )
             if isinstance(message, HumanMessage):
                 prefix = "You"

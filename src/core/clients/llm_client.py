@@ -71,11 +71,13 @@ def _discover_candidates() -> list[ProviderCandidate]:
             ProviderCandidate(
                 provider_id="azure_openai",
                 display_name=f"Azure OpenAI ({azure_deployment})",
-                make_model=lambda key=azure_key, endpoint=azure_endpoint, deployment=azure_deployment, version=azure_api_version: AzureChatOpenAI(
-                    api_key=key,
-                    azure_endpoint=endpoint,
-                    azure_deployment=deployment,
-                    api_version=version,
+                make_model=lambda key=azure_key, endpoint=azure_endpoint, deployment=azure_deployment, version=azure_api_version: (
+                    AzureChatOpenAI(
+                        api_key=key,
+                        azure_endpoint=endpoint,
+                        azure_deployment=deployment,
+                        api_version=version,
+                    )
                 ),
             )
         )
@@ -129,9 +131,11 @@ def _discover_candidates() -> list[ProviderCandidate]:
             ProviderCandidate(
                 provider_id="ollama",
                 display_name=f"Ollama ({resolved_model})",
-                make_model=lambda model=resolved_model, base_url=ollama_base_url: ChatOllama(
-                    model=model,
-                    base_url=base_url or None,
+                make_model=lambda model=resolved_model, base_url=ollama_base_url: (
+                    ChatOllama(
+                        model=model,
+                        base_url=base_url or None,
+                    )
                 ),
             )
         )
@@ -139,7 +143,9 @@ def _discover_candidates() -> list[ProviderCandidate]:
     return candidates
 
 
-def _validate_candidates(candidates: Sequence[ProviderCandidate]) -> tuple[list[tuple[ProviderCandidate, object]], list[tuple[ProviderCandidate, str]]]:
+def _validate_candidates(
+    candidates: Sequence[ProviderCandidate],
+) -> tuple[list[tuple[ProviderCandidate, object]], list[tuple[ProviderCandidate, str]]]:
     working: list[tuple[ProviderCandidate, object]] = []
     failed: list[tuple[ProviderCandidate, str]] = []
 
@@ -171,7 +177,9 @@ def _choose_model(
             if candidate.provider_id == forced_provider:
                 print(f"Using provider from LLM_PROVIDER='{forced_provider}'.")
                 return candidate, model
-        available = ", ".join(candidate.provider_id for candidate, _ in working) or "none"
+        available = (
+            ", ".join(candidate.provider_id for candidate, _ in working) or "none"
+        )
         raise RuntimeError(
             f"LLM_PROVIDER='{forced_provider}' is not available. Verified providers: {available}"
         )
@@ -192,7 +200,9 @@ def _choose_model(
 
     default_idx = 1
     while True:
-        raw = input(f"Choose provider [1-{len(working)}] (default {default_idx}): ").strip()
+        raw = input(
+            f"Choose provider [1-{len(working)}] (default {default_idx}): "
+        ).strip()
         if raw == "":
             return working[default_idx - 1]
         if raw.isdigit():
@@ -222,10 +232,7 @@ def build_chat_model(tools: Sequence | None = None, prompt_on_multiple: bool = T
         details = "\n".join(
             f"- {candidate.display_name}: {reason}" for candidate, reason in failed
         )
-        raise RuntimeError(
-            "No configured provider passed verification.\n"
-            f"{details}"
-        )
+        raise RuntimeError(f"No configured provider passed verification.\n{details}")
 
     selected_provider, selected_model = _choose_model(
         working=working,

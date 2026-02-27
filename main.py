@@ -16,7 +16,9 @@ from src.tools import add, multiply, subtract
 load_dotenv()
 
 
-SYSTEM_PROMPT = SystemMessage(content="You are my AI assistant. Use tools when needed and answer clearly.")
+SYSTEM_PROMPT = SystemMessage(
+    content="You are my AI assistant. Use tools when needed and answer clearly."
+)
 
 tools = [add, subtract, multiply]
 
@@ -98,7 +100,11 @@ def main() -> None:
 
         ai_message = get_last_ai_message(conversation_history)
         if ai_message:
-            content = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+            content = (
+                ai_message.content
+                if isinstance(ai_message.content, str)
+                else str(ai_message.content)
+            )
             print(f"\nZoe: {content}\n")
             speak_text(content)
         else:

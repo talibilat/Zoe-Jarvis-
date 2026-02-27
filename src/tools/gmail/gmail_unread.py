@@ -109,7 +109,9 @@ def get_unread_email_summary(
             )
             headers = detail.get("payload", {}).get("headers", [])
             header_map = {
-                (h.get("name") or "").lower(): h.get("value") for h in headers if "name" in h
+                (h.get("name") or "").lower(): h.get("value")
+                for h in headers
+                if "name" in h
             }
             emails.append(
                 {
