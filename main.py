@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated, List, Sequence, TypedDict
 
 from dotenv import load_dotenv
@@ -8,8 +9,14 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
+from src.agent import (
+    DEFAULT_STREAM_MODES,
+    get_last_ai_text,
+    resolve_stream_modes,
+    stream_agent_response,
+)
 from src.core.clients.llm_client import build_chat_model
-from src.core.logs import log_conversation
+from src.core.logs import append_stream_chunk, log_conversation
 from src.core.speech_service import speak_text, transcribe_speech
 from src.core.terminal_ui import (
     format_assistant_line,
@@ -79,7 +86,11 @@ def get_last_ai_message(messages: Sequence[BaseMessage]) -> AIMessage | None:
 
 def main() -> None:
     app = build_app()
+    stream_modes = resolve_stream_modes(os.getenv("STREAM_MODES"))
     conversation_history: List[BaseMessage] = []
+    streamed_chunk_log: List[List[str]] = []
+    live_stream_log_initialized = False
+    turn_count = 0
 
     print(
         format_system_line(
@@ -88,6 +99,12 @@ def main() -> None:
             bold=True,
         )
     )
+    if stream_modes != list(DEFAULT_STREAM_MODES):
+        print(
+            format_system_line(
+                f"Streaming modes: {', '.join(stream_modes)}", tone="info"
+            )
+        )
     while True:
         try:
             print()
@@ -115,19 +132,45 @@ def main() -> None:
             break
 
         conversation_history.append(HumanMessage(content=user_input))
-        result = app.invoke({"messages": conversation_history})
-        conversation_history = list(result["messages"])
+        turn_count += 1
+        streamed_chunks: List[str] = []
+        stream_state = {"started": False}
 
-        ai_message = get_last_ai_message(conversation_history)
-        if ai_message:
-            content = (
-                ai_message.content
-                if isinstance(ai_message.content, str)
-                else str(ai_message.content)
+        def on_chunk(chunk: str) -> None:
+            nonlocal live_stream_log_initialized
+            if not stream_state["started"]:
+                print()
+                print(format_assistant_line(""), end="", flush=True)
+                stream_state["started"] = True
+            chunk_number = len(streamed_chunks) + 1
+            streamed_chunks.append(chunk)
+            append_stream_chunk(
+                turn_count,
+                chunk,
+                chunk_index=chunk_number,
+                initialize=not live_stream_log_initialized,
             )
-            print()
-            print(format_assistant_line(content))
-            print()
+            live_stream_log_initialized = True
+            print(chunk, end="", flush=True)
+
+        conversation_history = stream_agent_response(
+            app,
+            conversation_history,
+            on_chunk,
+            stream_mode=stream_modes,
+        )
+        if streamed_chunks:
+            streamed_chunk_log.append(list(streamed_chunks))
+        content = get_last_ai_text(conversation_history)
+
+        if content:
+            if stream_state["started"]:
+                print()
+                print()
+            else:
+                print()
+                print(format_assistant_line(content))
+                print()
             speak_text(content)
         else:
             print()
@@ -135,7 +178,10 @@ def main() -> None:
             print()
 
     if conversation_history:
-        log_path = log_conversation(conversation_history)
+        log_path = log_conversation(
+            conversation_history,
+            stream_chunks=streamed_chunk_log,
+        )
         print(
             format_system_line(
                 f"Conversation saved to {log_path.name}", tone="success", bold=True

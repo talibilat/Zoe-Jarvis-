@@ -16,6 +16,17 @@ At startup, the app:
 - Verifies each configured provider with a lightweight test call
 - Prompts you to choose a provider when multiple verified providers are available
 - Uses `LLM_PROVIDER` directly if you want to force a provider without prompting
+- Streams assistant responses live in the terminal using LangGraph streaming
+
+## Streaming behavior
+
+- CLI runtime uses combined LangGraph stream modes: `messages` + `updates`.
+- `messages` provides token-by-token output for responsive UX.
+- `updates` keeps graph state synchronized so conversation history is preserved.
+- Override modes with `STREAM_MODES` in `.env` (example: `STREAM_MODES=values`).
+- The reusable helper is `stream_agent_response(...)` in `src/agent/app.py`.
+- `src/logging.txt` includes a `Streaming Chunks` section when token chunks are emitted.
+- While a response streams, chunks are appended live to `src/logging.txt`.
 
 ## Testing and quality gates
 
@@ -45,6 +56,7 @@ After setup, pushes run the pre-push quality gate (lint, syntax, dependency heal
 | `CLAUDE_API_KEY` | Optional | Alias key name for Claude (used if `ANTHROPIC_API_KEY` is not set). |
 | `CLAUDE_MODEL` | Optional | Claude model name (default: `claude-3-5-sonnet-latest`). |
 | `LLM_PROVIDER` | Optional | Force provider and skip prompt. Values: `azure_openai`, `openai`, `claude`, `ollama`. |
+| `STREAM_MODES` | Optional | Comma-separated LangGraph stream modes for CLI (`values`, `updates`, `custom`, `messages`, `debug`). Default: `messages,updates`. |
 | `AZURE_OPENAI_RESOURCE` | Optional | Azure resource name used by realtime/websocket flows. |
 | `SESSIONS_URL` | Optional | Realtime sessions URL for ephemeral session key creation. |
 | `WEBRTC_URL` | Optional | Realtime WebRTC URL for browser clients. |

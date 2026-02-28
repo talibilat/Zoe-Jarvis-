@@ -50,30 +50,113 @@ def test_main_loop_runs_conversation_and_logs(monkeypatch) -> None:
     main_module = _load_main_module(monkeypatch)
 
     app = MagicMock()
-    app.invoke.return_value = {
-        "messages": [
+    stream_mock = MagicMock(
+        return_value=[
             HumanMessage(content="hello"),
             AIMessage(content="assistant response"),
         ]
-    }
+    )
 
     transcribe_mock = MagicMock(side_effect=["hello", "exit"])
     speak_mock = MagicMock()
     log_mock = MagicMock(return_value=Path("/tmp/logging.txt"))
+    append_stream_chunk_mock = MagicMock()
 
     monkeypatch.setattr(main_module, "build_app", MagicMock(return_value=app))
+    monkeypatch.setattr(main_module, "stream_agent_response", stream_mock)
     monkeypatch.setattr(main_module, "transcribe_speech", transcribe_mock)
     monkeypatch.setattr(main_module, "speak_text", speak_mock)
     monkeypatch.setattr(main_module, "log_conversation", log_mock)
+    monkeypatch.setattr(main_module, "append_stream_chunk", append_stream_chunk_mock)
     monkeypatch.setattr(main_module, "format_system_line", lambda text, **_kwargs: text)
     monkeypatch.setattr(main_module, "format_user_line", lambda text: text)
     monkeypatch.setattr(main_module, "format_assistant_line", lambda text: text)
 
     main_module.main()
 
-    app.invoke.assert_called_once()
+    stream_mock.assert_called_once()
+    assert stream_mock.call_args.kwargs["stream_mode"] == ["messages", "updates"]
     speak_mock.assert_called_once_with("assistant response")
     log_mock.assert_called_once()
+
+
+def test_main_uses_stream_modes_from_env(monkeypatch) -> None:
+    main_module = _load_main_module(monkeypatch)
+
+    app = MagicMock()
+    stream_mock = MagicMock(
+        return_value=[
+            HumanMessage(content="hello"),
+            AIMessage(content="assistant response"),
+        ]
+    )
+
+    transcribe_mock = MagicMock(side_effect=["hello", "exit"])
+    speak_mock = MagicMock()
+    log_mock = MagicMock(return_value=Path("/tmp/logging.txt"))
+    append_stream_chunk_mock = MagicMock()
+
+    monkeypatch.setenv("STREAM_MODES", "values")
+    monkeypatch.setattr(main_module, "build_app", MagicMock(return_value=app))
+    monkeypatch.setattr(main_module, "stream_agent_response", stream_mock)
+    monkeypatch.setattr(main_module, "transcribe_speech", transcribe_mock)
+    monkeypatch.setattr(main_module, "speak_text", speak_mock)
+    monkeypatch.setattr(main_module, "log_conversation", log_mock)
+    monkeypatch.setattr(main_module, "append_stream_chunk", append_stream_chunk_mock)
+    monkeypatch.setattr(main_module, "format_system_line", lambda text, **_kwargs: text)
+    monkeypatch.setattr(main_module, "format_user_line", lambda text: text)
+    monkeypatch.setattr(main_module, "format_assistant_line", lambda text: text)
+
+    main_module.main()
+
+    assert stream_mock.call_args.kwargs["stream_mode"] == ["values"]
+
+
+def test_main_passes_streamed_chunks_to_log(monkeypatch) -> None:
+    main_module = _load_main_module(monkeypatch)
+
+    app = MagicMock()
+
+    def fake_stream_agent_response(_app, _history, on_chunk, *, stream_mode):
+        assert stream_mode == ["messages", "updates"]
+        on_chunk("Hel")
+        on_chunk("lo")
+        return [
+            HumanMessage(content="hello"),
+            AIMessage(content="Hello"),
+        ]
+
+    transcribe_mock = MagicMock(side_effect=["hello", "exit"])
+    speak_mock = MagicMock()
+    log_mock = MagicMock(return_value=Path("/tmp/logging.txt"))
+    append_stream_chunk_mock = MagicMock()
+
+    monkeypatch.setattr(main_module, "build_app", MagicMock(return_value=app))
+    monkeypatch.setattr(
+        main_module, "stream_agent_response", fake_stream_agent_response
+    )
+    monkeypatch.setattr(main_module, "transcribe_speech", transcribe_mock)
+    monkeypatch.setattr(main_module, "speak_text", speak_mock)
+    monkeypatch.setattr(main_module, "log_conversation", log_mock)
+    monkeypatch.setattr(main_module, "append_stream_chunk", append_stream_chunk_mock)
+    monkeypatch.setattr(main_module, "format_system_line", lambda text, **_kwargs: text)
+    monkeypatch.setattr(main_module, "format_user_line", lambda text: text)
+    monkeypatch.setattr(main_module, "format_assistant_line", lambda text: text)
+
+    main_module.main()
+
+    assert log_mock.call_args.kwargs["stream_chunks"] == [["Hel", "lo"]]
+    assert append_stream_chunk_mock.call_count == 2
+    assert append_stream_chunk_mock.call_args_list[0].args == (1, "Hel")
+    assert append_stream_chunk_mock.call_args_list[1].args == (1, "lo")
+    assert append_stream_chunk_mock.call_args_list[0].kwargs == {
+        "chunk_index": 1,
+        "initialize": True,
+    }
+    assert append_stream_chunk_mock.call_args_list[1].kwargs == {
+        "chunk_index": 2,
+        "initialize": False,
+    }
 
 
 def test_main_loop_skips_logging_when_no_conversation(monkeypatch) -> None:

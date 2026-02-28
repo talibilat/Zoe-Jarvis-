@@ -26,3 +26,34 @@ def test_log_conversation_writes_expected_sections(monkeypatch, tmp_path) -> Non
     assert "Tool: tool output\n" in text
     assert "SystemMessage: system note\n" in text
     assert text.endswith("End of Conversation\n")
+
+
+def test_log_conversation_includes_stream_chunks_section(monkeypatch, tmp_path) -> None:
+    log_path = tmp_path / "logging.txt"
+    monkeypatch.setattr(logs, "LOG_FILE", log_path)
+
+    messages = [
+        HumanMessage(content="Hi"),
+        AIMessage(content="Hello there"),
+    ]
+
+    logs.log_conversation(messages, stream_chunks=[["Hel", "lo\nthere"]])
+
+    text = log_path.read_text(encoding="utf-8")
+    assert "Streaming Chunks:\n" in text
+    assert "Turn 1:\n" in text
+    assert "  1. Hel\n" in text
+    assert "  2. lo\\nthere\n" in text
+
+
+def test_append_stream_chunk_writes_live_updates(monkeypatch, tmp_path) -> None:
+    log_path = tmp_path / "logging.txt"
+    monkeypatch.setattr(logs, "LOG_FILE", log_path)
+
+    logs.append_stream_chunk(1, "Hel", chunk_index=1, initialize=True)
+    logs.append_stream_chunk(1, "lo\nthere", chunk_index=2)
+
+    text = log_path.read_text(encoding="utf-8")
+    assert text.startswith("Live Streaming Chunks:\n")
+    assert "Turn 1, chunk 1: Hel\n" in text
+    assert "Turn 1, chunk 2: lo\\nthere\n" in text

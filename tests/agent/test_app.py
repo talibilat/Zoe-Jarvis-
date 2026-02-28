@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from langchain_core.messages import AIMessage, HumanMessage
+import pytest
 
 import src.agent.app as agent_app
 
@@ -13,8 +14,8 @@ class FakeApp:
         self._updates = updates
         self.calls = []
 
-    def stream(self, payload, *, stream_mode: str):
-        self.calls.append((payload, stream_mode))
+    def stream(self, payload, *, stream_mode, subgraphs: bool = False):
+        self.calls.append((payload, stream_mode, subgraphs))
         for update in self._updates:
             yield update
 
@@ -64,12 +65,58 @@ def test_stream_agent_response_streams_incremental_ai_chunks() -> None:
     )
 
     chunks: list[str] = []
-    final_messages = agent_app.stream_agent_response(app, history, chunks.append)
+    final_messages = agent_app.stream_agent_response(
+        app,
+        history,
+        chunks.append,
+        stream_mode="updates",
+    )
 
-    assert app.calls == [({"messages": history}, "updates")]
+    assert app.calls == [({"messages": history}, "updates", False)]
     assert chunks == ["Hello", " there"]
     assert isinstance(final_messages[-1], AIMessage)
     assert final_messages[-1].content == "Hello there"
+
+
+def test_stream_agent_response_streams_messages_and_state_updates() -> None:
+    history = [HumanMessage(content="hello")]
+    app = FakeApp(
+        [
+            (
+                "messages",
+                (SimpleNamespace(content="Hel"), {"langgraph_node": "agent"}),
+            ),
+            (
+                "messages",
+                (SimpleNamespace(content="lo"), {"langgraph_node": "agent"}),
+            ),
+            (
+                "updates",
+                {
+                    "agent": {
+                        "messages": [
+                            HumanMessage(content="hello"),
+                            AIMessage(content="Hello"),
+                        ]
+                    },
+                },
+            ),
+        ]
+    )
+
+    chunks: list[str] = []
+    final_messages = agent_app.stream_agent_response(
+        app,
+        history,
+        chunks.append,
+        stream_mode=("messages", "updates"),
+        token_node="agent",
+    )
+
+    assert app.calls == [({"messages": history}, ["messages", "updates"], False)]
+    assert chunks == ["Hel", "lo"]
+    assert isinstance(final_messages[-1], AIMessage)
+    assert final_messages[-1].content == "Hello"
 
 
 def test_get_last_ai_text_returns_latest_ai_content() -> None:
@@ -81,6 +128,29 @@ def test_get_last_ai_text_returns_latest_ai_content() -> None:
 
     assert agent_app.get_last_ai_text(messages) == "[{'text': 'second'}]"
     assert agent_app.get_last_ai_text([HumanMessage(content="only user")]) == ""
+
+
+def test_resolve_stream_modes_defaults_to_messages_and_updates() -> None:
+    assert agent_app.resolve_stream_modes(None) == ["messages", "updates"]
+
+
+def test_resolve_stream_modes_parses_and_validates_values() -> None:
+    assert agent_app.resolve_stream_modes("messages, custom") == [
+        "messages",
+        "custom",
+        "updates",
+    ]
+    assert agent_app.resolve_stream_modes("values") == ["values"]
+
+
+def test_resolve_stream_modes_rejects_empty_or_unknown() -> None:
+    with pytest.raises(ValueError, match="STREAM_MODES is set but empty"):
+        agent_app.resolve_stream_modes("")
+
+    with pytest.raises(
+        ValueError, match="Unsupported stream_mode value\\(s\\): invalid"
+    ):
+        agent_app.resolve_stream_modes("invalid")
 
 
 def test_build_app_wires_graph_and_tool_node(monkeypatch) -> None:
