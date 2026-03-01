@@ -106,12 +106,12 @@ def test_speak_text_logs_error_on_failure(monkeypatch) -> None:
         "init",
         MagicMock(side_effect=RuntimeError("tts failure")),
     )
-    error_mock = MagicMock()
-    monkeypatch.setattr(speech_service.logging, "error", error_mock)
+    logger_mock = MagicMock()
+    monkeypatch.setattr(speech_service, "logger", logger_mock)
 
     speech_service.speak_text("hello")
 
-    error_mock.assert_called_once()
+    logger_mock.error.assert_called_once()
 
 
 def test_transcribe_speech_success_and_single_ambient_calibration(monkeypatch) -> None:
@@ -134,11 +134,11 @@ def test_transcribe_speech_handles_wait_timeout(monkeypatch) -> None:
         raise speech_service.sr.WaitTimeoutError()
 
     monkeypatch.setattr(speech_service.recognizer, "listen", _raise_timeout)
-    info_mock = MagicMock()
-    monkeypatch.setattr(speech_service.logging, "info", info_mock)
+    logger_mock = MagicMock()
+    monkeypatch.setattr(speech_service, "logger", logger_mock)
 
     assert speech_service.transcribe_speech() is None
-    info_mock.assert_called_once()
+    logger_mock.info.assert_called_once()
 
 
 def test_transcribe_speech_handles_unknown_value(monkeypatch) -> None:
@@ -148,11 +148,11 @@ def test_transcribe_speech_handles_unknown_value(monkeypatch) -> None:
         raise speech_service.sr.UnknownValueError()
 
     monkeypatch.setattr(speech_service.recognizer, "recognize_google", _raise_unknown)
-    info_mock = MagicMock()
-    monkeypatch.setattr(speech_service.logging, "info", info_mock)
+    logger_mock = MagicMock()
+    monkeypatch.setattr(speech_service, "logger", logger_mock)
 
     assert speech_service.transcribe_speech() is None
-    info_mock.assert_called_once()
+    logger_mock.info.assert_called_once()
 
 
 def test_transcribe_speech_handles_generic_listen_error(monkeypatch) -> None:
@@ -162,11 +162,11 @@ def test_transcribe_speech_handles_generic_listen_error(monkeypatch) -> None:
         raise RuntimeError("microphone failure")
 
     monkeypatch.setattr(speech_service.recognizer, "listen", _raise_error)
-    error_mock = MagicMock()
-    monkeypatch.setattr(speech_service.logging, "error", error_mock)
+    logger_mock = MagicMock()
+    monkeypatch.setattr(speech_service, "logger", logger_mock)
 
     assert speech_service.transcribe_speech() is None
-    error_mock.assert_called_once()
+    logger_mock.error.assert_called_once()
 
 
 def test_transcribe_speech_handles_generic_recognition_error(monkeypatch) -> None:
@@ -176,8 +176,8 @@ def test_transcribe_speech_handles_generic_recognition_error(monkeypatch) -> Non
         raise RuntimeError("recognition failure")
 
     monkeypatch.setattr(speech_service.recognizer, "recognize_google", _raise_error)
-    error_mock = MagicMock()
-    monkeypatch.setattr(speech_service.logging, "error", error_mock)
+    logger_mock = MagicMock()
+    monkeypatch.setattr(speech_service, "logger", logger_mock)
 
     assert speech_service.transcribe_speech() is None
-    error_mock.assert_called_once()
+    logger_mock.error.assert_called_once()

@@ -19,6 +19,7 @@ from src.agent import (
     resolve_stream_modes,
     stream_agent_response,
 )
+from src.core.logger import configure_logger, logger
 from src.core.logs import append_stream_chunks, log_conversation
 from src.core.speech_service import speak_text, transcribe_speech
 from src.core.terminal_ui import (
@@ -28,6 +29,18 @@ from src.core.terminal_ui import (
     format_system_line,
     format_user_line,
 )
+
+
+def _log(message: str, *, level: str = "INFO") -> None:
+    logger.log(level, message)
+
+
+def _log_blank_line() -> None:
+    _log("")
+
+
+def _log_inline(message: str) -> None:
+    logger.opt(raw=True).log("INFO", message)
 
 
 def _preview_text(value: Any, *, max_length: int = 80) -> str:
@@ -189,18 +202,23 @@ def _safe_speak(text: str) -> None:
     try:
         speak_text(text)
     except KeyboardInterrupt:
-        print()
-        print(format_system_line("Speech playback interrupted.", tone="warning"))
+        _log_blank_line()
+        _log(
+            format_system_line("Speech playback interrupted.", tone="warning"),
+            level="WARNING",
+        )
     except Exception as error:  # pragma: no cover - dependent on local TTS runtime
-        print(
+        _log(
             format_system_line(
                 f"Speech playback failed: {error}",
                 tone="warning",
-            )
+            ),
+            level="WARNING",
         )
 
 
 def main() -> None:
+    configure_logger()
     app = build_app()
     stream_modes = resolve_stream_modes(os.getenv("STREAM_MODES"))
     conversation_history: List[BaseMessage] = []
@@ -209,7 +227,7 @@ def main() -> None:
     turn_count = 0
     missed_input_count = 0
 
-    print(
+    _log(
         format_system_line(
             "Say 'exit' to quit. I'm listening for your question or math problem.",
             tone="system",
@@ -217,28 +235,29 @@ def main() -> None:
         )
     )
     if stream_modes != list(DEFAULT_STREAM_MODES):
-        print(
+        _log(
             format_system_line(
                 f"Streaming modes: {', '.join(stream_modes)}", tone="info"
             )
         )
     while True:
         try:
-            print()
-            print(format_system_line("Listening...", tone="listening", bold=True))
+            _log_blank_line()
+            _log(format_system_line("Listening...", tone="listening", bold=True))
             user_input = transcribe_speech()
         except (EOFError, KeyboardInterrupt):
-            print()
+            _log_blank_line()
             break
 
         if user_input is None:
             missed_input_count += 1
             if missed_input_count == 1 or missed_input_count % 5 == 0:
-                print(
+                _log(
                     format_system_line(
                         "I didn't catch that. Please try again.",
                         tone="warning",
-                    )
+                    ),
+                    level="WARNING",
                 )
             continue
 
@@ -247,14 +266,14 @@ def main() -> None:
             continue
         missed_input_count = 0
 
-        print(format_user_line(user_input))
+        _log(format_user_line(user_input))
 
         if user_input.lower() == "exit":
             break
 
         conversation_history.append(HumanMessage(content=user_input))
         turn_count += 1
-        print(format_system_line("[Phase] Analyzing your request...", tone="info"))
+        _log(format_system_line("[Phase] Analyzing your request...", tone="info"))
         streamed_chunks: List[str] = []
         pending_stream_log_chunks: List[str] = []
         logged_chunk_count = 0
@@ -272,7 +291,14 @@ def main() -> None:
         }
 
         def emit_phase(message: str, *, tone: str = "info") -> None:
-            print(format_system_line(f"[Phase] {message}", tone=tone))
+            level = (
+                "ERROR"
+                if tone == "error"
+                else "WARNING"
+                if tone == "warning"
+                else "INFO"
+            )
+            _log(format_system_line(f"[Phase] {message}", tone=tone), level=level)
 
         def on_stream(mode: str, chunk: Any) -> None:
             if mode != "updates":
@@ -366,34 +392,30 @@ def main() -> None:
                 if _is_json_like(stripped):
                     stream_state["mode"] = "structured"
                     if not stream_state["started"]:
-                        print()
-                        print(format_assistant_line(""), end="", flush=True)
+                        _log_blank_line()
+                        _log_inline(format_assistant_line(""))
                         stream_state["started"] = True
-                    print(
+                    _log_inline(
                         format_system_line(
                             " [Formatting data for readability...]",
                             tone="info",
-                        ),
-                        end="",
-                        flush=True,
+                        )
                     )
                     return
 
                 stream_state["mode"] = "plain"
 
             if not stream_state["started"]:
-                print()
-                print(format_assistant_line(""), end="", flush=True)
+                _log_blank_line()
+                _log_inline(format_assistant_line(""))
                 stream_state["started"] = True
             if stream_state["mode"] == "structured":
                 return
-            print(
+            _log_inline(
                 format_assistant_stream_chunk(
                     chunk,
                     accumulated_text=accumulated_text,
-                ),
-                end="",
-                flush=True,
+                )
             )
 
         conversation_history = stream_agent_response(
@@ -425,38 +447,38 @@ def main() -> None:
         if content_for_output:
             formatted_output = format_assistant_output(content_for_output)
             if stream_state["started"]:
-                print()
+                _log_blank_line()
                 if stream_state[
                     "mode"
                 ] == "structured" or formatted_output != format_assistant_line(
                     content_for_output
                 ):
-                    print(formatted_output)
-                    print()
+                    _log(formatted_output)
+                    _log_blank_line()
                 else:
-                    print()
+                    _log_blank_line()
             else:
-                print()
-                print(formatted_output)
-                print()
+                _log_blank_line()
+                _log(formatted_output)
+                _log_blank_line()
             _safe_speak(content_for_output)
         else:
-            print()
-            print(format_assistant_line("I was not able to generate a response."))
-            print()
+            _log_blank_line()
+            _log(format_assistant_line("I was not able to generate a response."))
+            _log_blank_line()
 
     if conversation_history:
         log_path = log_conversation(
             conversation_history,
             stream_chunks=streamed_chunk_log,
         )
-        print(
+        _log(
             format_system_line(
                 f"Conversation saved to {log_path.name}", tone="success", bold=True
             )
         )
     else:
-        print(format_system_line("No conversation to save.", tone="info"))
+        _log(format_system_line("No conversation to save.", tone="info"))
 
 
 if __name__ == "__main__":

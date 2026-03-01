@@ -1,8 +1,8 @@
 import os
-import logging
 import pyttsx3
 from dotenv import load_dotenv
 import speech_recognition as sr
+from src.core.logger import logger
 
 load_dotenv()
 
@@ -28,7 +28,7 @@ def speak_text(text: str):
         engine.say(text)
         engine.runAndWait()
     except Exception as e:
-        logging.error(f"❌ TTS failed: {e}")
+        logger.error(f"❌ TTS failed: {e}")
 
 
 def transcribe_speech(
@@ -49,17 +49,17 @@ def transcribe_speech(
                 source, timeout=timeout, phrase_time_limit=phrase_time_limit
             )
     except sr.WaitTimeoutError:
-        logging.info("No speech detected before timeout.")
+        logger.info("No speech detected before timeout.")
         return None
     except Exception as exc:
-        logging.error(f"Listening failed: {exc}")
+        logger.error(f"Listening failed: {exc}")
         return None
 
     try:
         return recognizer.recognize_google(audio).strip()
     except sr.UnknownValueError:
-        logging.info("Speech was unintelligible.")
+        logger.info("Speech was unintelligible.")
     except Exception as exc:
-        logging.error(f"Speech recognition failed: {exc}")
+        logger.error(f"Speech recognition failed: {exc}")
 
     return None
