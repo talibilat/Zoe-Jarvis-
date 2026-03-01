@@ -1,49 +1,21 @@
 from __future__ import annotations
 
 import base64
-import json
 import mimetypes
 import os
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Sequence
 
-from google.auth.exceptions import RefreshError
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from src.core.clients.gmail_client import execute_gmail_request, get_gmail_credentials
+
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
-TOKEN_FILE = (os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json"
-TOKEN_BACKUP_FILE = (
-    os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak"
-).strip() or "token.json.bak"
-CREDS_FILE = (
-    os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json"
-).strip() or "credentials.json"
-
-
-def _read_declared_scopes(token_path: str) -> set[str]:
-    try:
-        with open(token_path, "r", encoding="utf-8") as token:
-            payload = json.load(token)
-    except (OSError, json.JSONDecodeError, TypeError):
-        return set()
-
-    declared_scopes = payload.get("scopes") or payload.get("scope")
-    if isinstance(declared_scopes, str):
-        return {scope for scope in declared_scopes.split() if scope}
-    if isinstance(declared_scopes, list):
-        return {str(scope).strip() for scope in declared_scopes if str(scope).strip()}
-
-    return set()
-
-
-def _token_has_required_scopes(token_path: str, required_scopes: Sequence[str]) -> bool:
-    declared_scopes = _read_declared_scopes(token_path)
-    return bool(declared_scopes) and set(required_scopes).issubset(declared_scopes)
+ATTACHMENT_ALLOWED_DIRS_ENV = "GMAIL_ATTACHMENT_ALLOWED_DIRS"
+ATTACHMENT_MAX_BYTES_ENV = "GMAIL_ATTACHMENT_MAX_BYTES"
+DEFAULT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 
 
 def _format_send_http_error(error: HttpError) -> str:
@@ -58,48 +30,96 @@ def _format_send_http_error(error: HttpError) -> str:
     return f"Gmail attachment send failed (HTTP {status}): {details}"
 
 
-def _load_compose_credentials() -> Credentials:
-    creds = None
+def _format_draft_http_error(error: HttpError) -> str:
+    status = getattr(getattr(error, "resp", None), "status", "unknown")
+    return f"Gmail attachment draft failed (HTTP {status}): {error}"
 
-    if os.path.exists(TOKEN_FILE) and _token_has_required_scopes(TOKEN_FILE, SCOPES):
-        try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-        except Exception:
-            creds = None
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-            except RefreshError:
-                creds = None
+def _load_compose_credentials():
+    return get_gmail_credentials(SCOPES)
 
-        if not creds or not creds.valid:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
 
-        if os.path.exists(TOKEN_FILE) and TOKEN_BACKUP_FILE != TOKEN_FILE:
-            with open(TOKEN_FILE, "r", encoding="utf-8") as current_token:
-                with open(TOKEN_BACKUP_FILE, "w", encoding="utf-8") as backup_token:
-                    backup_token.write(current_token.read())
+def _gmail_service():
+    return build("gmail", "v1", credentials=_load_compose_credentials())
 
-        with open(TOKEN_FILE, "w", encoding="utf-8") as token:
-            token.write(creds.to_json())
 
-    return creds
+def _attachment_max_bytes() -> int:
+    raw = (os.getenv(ATTACHMENT_MAX_BYTES_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_ATTACHMENT_MAX_BYTES
+
+    try:
+        max_bytes = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"{ATTACHMENT_MAX_BYTES_ENV} must be an integer byte count."
+        ) from exc
+
+    if max_bytes <= 0:
+        raise ValueError(f"{ATTACHMENT_MAX_BYTES_ENV} must be greater than zero.")
+    return max_bytes
+
+
+def _allowed_attachment_roots() -> list[Path]:
+    raw = (os.getenv(ATTACHMENT_ALLOWED_DIRS_ENV) or "").strip()
+    if not raw:
+        return [Path.cwd().resolve()]
+
+    roots: list[Path] = []
+    for segment in raw.split(","):
+        candidate = segment.strip()
+        if not candidate:
+            continue
+        roots.append(Path(candidate).expanduser().resolve())
+
+    if not roots:
+        return [Path.cwd().resolve()]
+    return roots
+
+
+def _is_within_root(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _require_attachment_confirmation(*, confirm: bool) -> None:
+    if not confirm:
+        raise ValueError(
+            "Attachment operations require explicit confirmation. Re-run with confirm=True."
+        )
 
 
 def _validate_attachment_paths(attachment_paths: Sequence[str]) -> list[Path]:
     if not attachment_paths:
         raise ValueError("attachment_paths must include at least one file path.")
 
+    max_bytes = _attachment_max_bytes()
+    allowed_roots = _allowed_attachment_roots()
     normalized_paths: list[Path] = []
+
     for raw_path in attachment_paths:
-        file_path = Path(raw_path).expanduser()
+        file_path = Path(raw_path).expanduser().resolve()
         if not file_path.exists():
             raise FileNotFoundError(f"Attachment file does not exist: {file_path}")
         if not file_path.is_file():
             raise ValueError(f"Attachment path is not a file: {file_path}")
+
+        if not any(_is_within_root(file_path, root) for root in allowed_roots):
+            allowed_preview = ", ".join(str(root) for root in allowed_roots)
+            raise PermissionError(
+                f"Attachment path '{file_path}' is outside allowed roots: {allowed_preview}"
+            )
+
+        file_size = file_path.stat().st_size
+        if file_size > max_bytes:
+            raise ValueError(
+                f"Attachment '{file_path.name}' is {file_size} bytes; "
+                f"max allowed is {max_bytes} bytes."
+            )
+
         normalized_paths.append(file_path)
 
     return normalized_paths
@@ -147,13 +167,14 @@ def gmail_create_draft_with_attachments(
     subject: str,
     body: str,
     attachment_paths: Sequence[str],
-) -> dict | None:
+    confirm: bool = False,
+) -> dict:
     """Create a Gmail draft with one or more file attachments."""
+    _require_attachment_confirmation(confirm=confirm)
     paths = _validate_attachment_paths(attachment_paths)
-    creds = _load_compose_credentials()
 
     try:
-        service = build("gmail", "v1", credentials=creds)
+        service = _gmail_service()
         message = _build_message(
             email_to=email_to,
             email_from=email_from,
@@ -161,17 +182,14 @@ def gmail_create_draft_with_attachments(
             body=body,
             attachment_paths=paths,
         )
-        draft = (
+        draft = execute_gmail_request(
             service.users()
             .drafts()
             .create(userId="me", body={"message": {"raw": _encode_message(message)}})
-            .execute()
         )
         return draft
-
     except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
+        raise RuntimeError(_format_draft_http_error(error)) from error
 
 
 def gmail_send_email_with_attachments(
@@ -180,13 +198,14 @@ def gmail_send_email_with_attachments(
     subject: str,
     body: str,
     attachment_paths: Sequence[str],
+    confirm: bool = False,
 ) -> dict:
     """Send a Gmail message with one or more file attachments."""
+    _require_attachment_confirmation(confirm=confirm)
     paths = _validate_attachment_paths(attachment_paths)
-    creds = _load_compose_credentials()
 
     try:
-        service = build("gmail", "v1", credentials=creds)
+        service = _gmail_service()
         message = _build_message(
             email_to=email_to,
             email_from=email_from,
@@ -194,13 +213,11 @@ def gmail_send_email_with_attachments(
             body=body,
             attachment_paths=paths,
         )
-        sent_message = (
+        sent_message = execute_gmail_request(
             service.users()
             .messages()
             .send(userId="me", body={"raw": _encode_message(message)})
-            .execute()
         )
         return sent_message
-
     except HttpError as error:
         raise RuntimeError(_format_send_http_error(error)) from error

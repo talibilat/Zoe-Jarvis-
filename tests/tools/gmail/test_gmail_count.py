@@ -93,7 +93,11 @@ def test_count_total_emails_calls_enumerate_when_flag_is_set(monkeypatch) -> Non
     monkeypatch.setattr(gmail_count, "enumerate_messages", enumerate_mock)
 
     gmail_count.count_total_emails(["--enumerate"])
-    enumerate_mock.assert_called_once_with(service)
+    enumerate_mock.assert_called_once_with(
+        service,
+        batch_size=500,
+        include_spam_trash=True,
+    )
 
 
 def test_count_total_emails_skips_enumerate_when_flag_not_set(monkeypatch) -> None:

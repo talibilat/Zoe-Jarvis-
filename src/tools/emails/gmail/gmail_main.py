@@ -232,6 +232,7 @@ def gmail_enable_forwarding(
     forwarding_email: str,
     disposition: str = "trash",
     enabled: bool = True,
+    confirm: bool = False,
 ) -> Dict | None:
     """Enable Gmail auto-forwarding for a verified forwarding address."""
 
@@ -239,6 +240,7 @@ def gmail_enable_forwarding(
         forwarding_email=forwarding_email,
         disposition=disposition,
         enabled=enabled,
+        confirm=confirm,
     )
 
 
@@ -292,6 +294,7 @@ def gmail_create_draft_with_attachments(
     body: str,
     attachment_paths: List[str],
     email_from: str = "me",
+    confirm: bool = False,
 ) -> Dict | None:
     """Create a Gmail draft with one or more file attachments."""
 
@@ -301,6 +304,7 @@ def gmail_create_draft_with_attachments(
         subject=subject,
         body=body,
         attachment_paths=attachment_paths,
+        confirm=confirm,
     )
 
 
@@ -311,6 +315,7 @@ def gmail_send_email_with_attachments(
     body: str,
     attachment_paths: List[str],
     email_from: str = "me",
+    confirm: bool = False,
 ) -> Dict | None:
     """Send a Gmail message with one or more file attachments."""
 
@@ -320,4 +325,5 @@ def gmail_send_email_with_attachments(
         subject=subject,
         body=body,
         attachment_paths=attachment_paths,
+        confirm=confirm,
     )

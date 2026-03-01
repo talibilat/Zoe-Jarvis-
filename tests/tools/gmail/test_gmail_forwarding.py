@@ -69,8 +69,9 @@ def test_enable_forwarding_enables_auto_forwarding_when_accepted(monkeypatch) ->
     monkeypatch.setattr(
         gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
     )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "dest@example.com")
 
-    result = gmail_forwarding.enable_forwarding("dest@example.com")
+    result = gmail_forwarding.enable_forwarding("dest@example.com", confirm=True)
 
     assert result == {
         "forwarding_address": {
@@ -105,8 +106,9 @@ def test_enable_forwarding_skips_auto_forwarding_when_not_verified(
     monkeypatch.setattr(
         gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
     )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "dest@example.com")
 
-    result = gmail_forwarding.enable_forwarding("dest@example.com")
+    result = gmail_forwarding.enable_forwarding("dest@example.com", confirm=True)
 
     assert result == {
         "forwarding_address": {
@@ -146,6 +148,36 @@ def test_enable_forwarding_rejects_invalid_disposition(monkeypatch) -> None:
         gmail_forwarding.enable_forwarding("dest@example.com", disposition="invalid")
 
 
+def test_enable_forwarding_requires_confirm(monkeypatch) -> None:
+    forwarding_addresses = _FakeForwardingAddressesResource(create_payload={})
+    settings = _FakeSettingsResource(
+        forwarding_addresses_resource=forwarding_addresses,
+        auto_forwarding_payload={},
+    )
+    monkeypatch.setattr(
+        gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
+    )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "dest@example.com")
+
+    with pytest.raises(ValueError, match="confirm=True"):
+        gmail_forwarding.enable_forwarding("dest@example.com")
+
+
+def test_enable_forwarding_rejects_non_allowlisted_target(monkeypatch) -> None:
+    forwarding_addresses = _FakeForwardingAddressesResource(create_payload={})
+    settings = _FakeSettingsResource(
+        forwarding_addresses_resource=forwarding_addresses,
+        auto_forwarding_payload={},
+    )
+    monkeypatch.setattr(
+        gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
+    )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "other@example.com")
+
+    with pytest.raises(PermissionError, match="not in GMAIL_FORWARDING_ALLOWLIST"):
+        gmail_forwarding.enable_forwarding("dest@example.com", confirm=True)
+
+
 def test_enable_forwarding_forwards_custom_disposition_and_enabled(
     monkeypatch,
 ) -> None:
@@ -162,9 +194,10 @@ def test_enable_forwarding_forwards_custom_disposition_and_enabled(
     monkeypatch.setattr(
         gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
     )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "dest@example.com")
 
     result = gmail_forwarding.enable_forwarding(
-        "dest@example.com", disposition="archive", enabled=False
+        "dest@example.com", disposition="archive", enabled=False, confirm=True
     )
 
     assert result == {
@@ -178,7 +211,7 @@ def test_enable_forwarding_forwards_custom_disposition_and_enabled(
     assert settings.update_calls[0]["body"]["disposition"] == "archive"
 
 
-def test_enable_forwarding_returns_none_on_http_error(monkeypatch) -> None:
+def test_enable_forwarding_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingForwardingAddressesResource(_FakeForwardingAddressesResource):
         def create(self, **kwargs):
             self.create_calls.append(kwargs)
@@ -200,5 +233,7 @@ def test_enable_forwarding_returns_none_on_http_error(monkeypatch) -> None:
     monkeypatch.setattr(
         gmail_forwarding, "_gmail_service", lambda: _FakeService(settings)
     )
+    monkeypatch.setenv("GMAIL_FORWARDING_ALLOWLIST", "dest@example.com")
 
-    assert gmail_forwarding.enable_forwarding("dest@example.com") is None
+    with pytest.raises(RuntimeError, match="configuring forwarding"):
+        gmail_forwarding.enable_forwarding("dest@example.com", confirm=True)

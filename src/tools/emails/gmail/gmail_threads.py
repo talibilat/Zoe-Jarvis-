@@ -6,7 +6,14 @@ from typing import Dict, List, Optional
 
 from googleapiclient.discovery import build
 
-from src.core.clients.gmail_client import gmail_client
+from src.core.clients.gmail_client import (
+    execute_gmail_request,
+    gmail_client,
+)
+
+
+def _gmail_service():
+    return build("gmail", "v1", credentials=gmail_client())
 
 
 def _extract_subject(headers: list[dict]) -> str:
@@ -26,7 +33,7 @@ def show_chatty_threads(
     min_messages = max(1, min_messages)
     max_threads = max(1, min(max_threads, 500))
 
-    service = build("gmail", "v1", credentials=gmail_client())
+    service = _gmail_service()
 
     list_kwargs = {
         "userId": "me",
@@ -35,7 +42,9 @@ def show_chatty_threads(
     if query and query.strip():
         list_kwargs["q"] = query.strip()
 
-    threads = service.users().threads().list(**list_kwargs).execute().get("threads", [])
+    threads = execute_gmail_request(service.users().threads().list(**list_kwargs)).get(
+        "threads", []
+    )
 
     chatty_threads: List[Dict[str, int | str]] = []
     for thread in threads:
@@ -43,7 +52,9 @@ def show_chatty_threads(
         if not thread_id:
             continue
 
-        detail = service.users().threads().get(userId="me", id=thread_id).execute()
+        detail = execute_gmail_request(
+            service.users().threads().get(userId="me", id=thread_id)
+        )
         messages = detail.get("messages", [])
         message_count = len(messages)
         if message_count < min_messages:

@@ -140,6 +140,7 @@ def test_gmail_enable_forwarding_wrapper_forwards_payload(monkeypatch) -> None:
         forwarding_email="dest@example.com",
         disposition="trash",
         enabled=True,
+        confirm=False,
     )
 
 
@@ -153,6 +154,7 @@ def test_gmail_enable_forwarding_wrapper_uses_defaults(monkeypatch) -> None:
         forwarding_email="dest@example.com",
         disposition="trash",
         enabled=True,
+        confirm=False,
     )
 
 
@@ -460,6 +462,7 @@ def test_gmail_create_draft_with_attachments_wrapper_forwards_payload(
         subject="Subject",
         body="Body",
         attachment_paths=["/tmp/a.txt", "/tmp/b.csv"],
+        confirm=False,
     )
 
 
@@ -505,6 +508,7 @@ def test_gmail_send_email_with_attachments_wrapper_forwards_payload(
         subject="Subject",
         body="Body",
         attachment_paths=["/tmp/a.txt", "/tmp/b.csv"],
+        confirm=False,
     )
 
 

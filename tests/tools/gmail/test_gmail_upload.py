@@ -51,6 +51,47 @@ def test_validate_attachment_paths_rejects_directory(tmp_path: Path) -> None:
         gmail_upload._validate_attachment_paths([str(tmp_path)])
 
 
+def test_create_draft_with_attachments_requires_confirm(
+    monkeypatch, tmp_path: Path
+) -> None:
+    attachment = tmp_path / "report.txt"
+    attachment.write_text("hello world", encoding="utf-8")
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
+
+    with pytest.raises(ValueError, match="confirm=True"):
+        gmail_upload.gmail_create_draft_with_attachments(
+            email_to="to@example.com",
+            email_from="from@example.com",
+            subject="Subject",
+            body="Body text",
+            attachment_paths=[str(attachment)],
+        )
+
+
+def test_validate_attachment_paths_rejects_outside_allowlist(
+    tmp_path: Path, monkeypatch
+) -> None:
+    attachment = tmp_path / "report.txt"
+    attachment.write_text("hello world", encoding="utf-8")
+    outside = tmp_path.parent
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(outside / "different"))
+
+    with pytest.raises(PermissionError, match="outside allowed roots"):
+        gmail_upload._validate_attachment_paths([str(attachment)])
+
+
+def test_validate_attachment_paths_rejects_oversized_files(
+    tmp_path: Path, monkeypatch
+) -> None:
+    attachment = tmp_path / "big.bin"
+    attachment.write_bytes(b"x" * 20)
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setenv("GMAIL_ATTACHMENT_MAX_BYTES", "10")
+
+    with pytest.raises(ValueError, match="max allowed"):
+        gmail_upload._validate_attachment_paths([str(attachment)])
+
+
 def test_create_draft_with_attachments_encodes_payload(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -62,6 +103,7 @@ def test_create_draft_with_attachments_encodes_payload(
 
     monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
     monkeypatch.setattr(gmail_upload, "build", build_mock)
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
 
     result = gmail_upload.gmail_create_draft_with_attachments(
         email_to="to@example.com",
@@ -69,6 +111,7 @@ def test_create_draft_with_attachments_encodes_payload(
         subject="Subject",
         body="Body text",
         attachment_paths=[str(attachment)],
+        confirm=True,
     )
 
     assert result == {"id": "draft-abc", "message": {"id": "msg-abc"}}
@@ -100,6 +143,7 @@ def test_send_email_with_attachments_uses_messages_send(
     service = _sent_service({"id": "sent-xyz", "threadId": "thread-xyz"})
     monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
     monkeypatch.setattr(gmail_upload, "build", lambda *_args, **_kwargs: service)
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
 
     result = gmail_upload.gmail_send_email_with_attachments(
         email_to="to@example.com",
@@ -107,6 +151,7 @@ def test_send_email_with_attachments_uses_messages_send(
         subject="Data",
         body="Attached",
         attachment_paths=[str(attachment)],
+        confirm=True,
     )
 
     assert result == {"id": "sent-xyz", "threadId": "thread-xyz"}
@@ -119,7 +164,7 @@ def test_send_email_with_attachments_uses_messages_send(
     assert attachments[0].get_filename() == "notes.csv"
 
 
-def test_create_draft_with_attachments_returns_none_on_http_error(
+def test_create_draft_with_attachments_raises_on_http_error(
     monkeypatch, tmp_path: Path
 ) -> None:
     attachment = tmp_path / "report.txt"
@@ -132,16 +177,17 @@ def test_create_draft_with_attachments_returns_none_on_http_error(
 
     monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
     monkeypatch.setattr(gmail_upload, "build", lambda *_args, **_kwargs: service)
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
 
-    result = gmail_upload.gmail_create_draft_with_attachments(
-        email_to="to@example.com",
-        email_from="from@example.com",
-        subject="Subject",
-        body="Body text",
-        attachment_paths=[str(attachment)],
-    )
-
-    assert result is None
+    with pytest.raises(RuntimeError, match="draft failed"):
+        gmail_upload.gmail_create_draft_with_attachments(
+            email_to="to@example.com",
+            email_from="from@example.com",
+            subject="Subject",
+            body="Body text",
+            attachment_paths=[str(attachment)],
+            confirm=True,
+        )
 
 
 def test_send_email_with_attachments_raises_on_http_error(
@@ -157,6 +203,7 @@ def test_send_email_with_attachments_raises_on_http_error(
 
     monkeypatch.setattr(gmail_upload, "_load_compose_credentials", lambda: "creds")
     monkeypatch.setattr(gmail_upload, "build", lambda *_args, **_kwargs: service)
+    monkeypatch.setenv("GMAIL_ATTACHMENT_ALLOWED_DIRS", str(tmp_path))
 
     with pytest.raises(RuntimeError, match="Gmail attachment send failed"):
         gmail_upload.gmail_send_email_with_attachments(
@@ -165,4 +212,5 @@ def test_send_email_with_attachments_raises_on_http_error(
             subject="Data",
             body="Attached",
             attachment_paths=[str(attachment)],
+            confirm=True,
         )

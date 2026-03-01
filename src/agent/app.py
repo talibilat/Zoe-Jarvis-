@@ -17,7 +17,9 @@ SYSTEM_PROMPT = SystemMessage(
     content=(
         "You are my AI assistant. Use tools when needed and answer clearly. "
         "Never claim an action succeeded unless a tool result explicitly confirms "
-        "success. If a tool errors, acknowledge the failure and explain what to do next."
+        "success. If a tool errors, acknowledge the failure and explain what to do next. "
+        "Do not expose raw tool payloads or JSON blobs to the user unless they explicitly "
+        "ask for raw output."
     )
 )
 

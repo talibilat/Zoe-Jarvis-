@@ -278,7 +278,7 @@ def test_returns_draft_payload_on_success(monkeypatch, draft_paths) -> None:
     assert result == {"id": "abc", "message": {"id": "msg"}}
 
 
-def test_returns_none_on_http_error(monkeypatch, draft_paths) -> None:
+def test_raises_runtime_error_on_http_error(monkeypatch, draft_paths) -> None:
     token_file, _, _ = draft_paths
     token_file.write_text("old-token", encoding="utf-8")
     creds = FakeCreds(valid=True)
@@ -297,7 +297,8 @@ def test_returns_none_on_http_error(monkeypatch, draft_paths) -> None:
     )
     _patch_build(monkeypatch, service)
 
-    assert _invoke_default_call() is None
+    with pytest.raises(RuntimeError, match="creating draft"):
+        _invoke_default_call()
 
 
 def test_build_receives_selected_credentials(monkeypatch, draft_paths) -> None:

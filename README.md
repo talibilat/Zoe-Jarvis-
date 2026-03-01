@@ -68,6 +68,10 @@ After setup, pushes run the pre-push quality gate (lint, syntax, dependency heal
 | `GMAIL_CREDENTIALS_FILE` | Optional | Path to OAuth credentials file (default: `credentials.json`). |
 | `GMAIL_TOKEN_FILE` | Optional | Path to OAuth token cache file (default: `token.json`). |
 | `GMAIL_TOKEN_BACKUP_FILE` | Optional | Path to token backup file before refresh/write (default: `token.json.bak`). |
+| `GMAIL_FORWARDING_ALLOWLIST` | Optional (required for forwarding tool) | Comma-separated allowlist for forwarding targets (exact emails, domains, or `@domain`). |
+| `GMAIL_ATTACHMENT_ALLOWED_DIRS` | Optional | Comma-separated directories allowed for Gmail attachment tools (default: current working directory). |
+| `GMAIL_ATTACHMENT_MAX_BYTES` | Optional | Max size per attachment in bytes (default: `10485760`, 10MB). |
+| `LOG_REDACT_SENSITIVE` | Optional | Redact email addresses in persisted logs (`true` by default). |
 | `OLLAMA_MODEL` | Optional | Local model setting used by local/Ollama paths. |
 | `OLLAMA_BASE_URL` | Optional | Ollama host URL (default is local Ollama endpoint). |
 | `OLLAMA_REASONING` | Optional | Toggle for local reasoning mode. |

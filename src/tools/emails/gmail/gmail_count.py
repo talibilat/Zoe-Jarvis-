@@ -13,7 +13,14 @@ from typing import Optional, Sequence
 
 from googleapiclient.discovery import build
 
-from src.core.clients.gmail_client import gmail_client
+from src.core.clients.gmail_client import (
+    execute_gmail_request,
+    gmail_client,
+)
+
+
+def _gmail_service():
+    return build("gmail", "v1", credentials=gmail_client())
 
 
 def enumerate_messages(
@@ -22,7 +29,7 @@ def enumerate_messages(
     total = 0
     page_token: Optional[str] = None
     while True:
-        resp = (
+        resp = execute_gmail_request(
             service.users()
             .messages()
             .list(
@@ -31,7 +38,6 @@ def enumerate_messages(
                 pageToken=page_token,
                 includeSpamTrash=include_spam_trash,
             )
-            .execute()
         )
         total += len(resp.get("messages", []))
         page_token = resp.get("nextPageToken")
@@ -40,9 +46,34 @@ def enumerate_messages(
     return total
 
 
+def get_mailbox_totals(
+    *,
+    enumerate_all: bool = False,
+    batch_size: int = 500,
+    include_spam_trash: bool = True,
+) -> tuple[int | None, int | None]:
+    """Return Gmail mailbox totals for the authenticated user."""
+
+    service = _gmail_service()
+    profile = execute_gmail_request(service.users().getProfile(userId="me"))
+    total_messages = profile.get("messagesTotal")
+    total_threads = profile.get("threadsTotal")
+
+    if enumerate_all:
+        enumerate_messages(
+            service,
+            batch_size=batch_size,
+            include_spam_trash=include_spam_trash,
+        )
+
+    return total_messages, total_threads
+
+
 def count_total_emails(
     argv: Sequence[str] | None = None,
 ) -> tuple[int | None, int | None]:
+    """Backward-compatible entry point that parses CLI args then returns totals."""
+
     parser = argparse.ArgumentParser(
         description="Count Gmail messages for the current user."
     )
@@ -51,15 +82,24 @@ def count_total_emails(
         action="store_true",
         help="Page through every message to verify the total (slower).",
     )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=500,
+        help="Page size for --enumerate mode (max 500).",
+    )
     args = parser.parse_args(argv)
 
-    service = build("gmail", "v1", credentials=gmail_client())
+    return get_mailbox_totals(
+        enumerate_all=args.enumerate,
+        batch_size=max(1, min(args.page_size, 500)),
+    )
 
-    profile = service.users().getProfile(userId="me").execute()
-    total_messages = profile.get("messagesTotal")
-    total_threads = profile.get("threadsTotal")
 
-    if args.enumerate:
-        enumerate_messages(service)
+def main(argv: Sequence[str] | None = None) -> int:
+    count_total_emails(argv)
+    return 0
 
-    return total_messages, total_threads
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

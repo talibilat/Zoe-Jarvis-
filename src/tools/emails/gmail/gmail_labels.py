@@ -1,67 +1,24 @@
 from __future__ import annotations
 
-import os
 from typing import Dict, List, Optional, Sequence
 
-from google.auth.exceptions import RefreshError
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+from src.core.clients.gmail_client import execute_gmail_request, get_gmail_service
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.labels",
     "https://www.googleapis.com/auth/gmail.modify",
 ]
-TOKEN_FILE = (os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json"
-TOKEN_BACKUP_FILE = (
-    os.getenv("GMAIL_TOKEN_BACKUP_FILE") or "token.json.bak"
-).strip() or "token.json.bak"
-CREDS_FILE = (
-    os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json"
-).strip() or "credentials.json"
-
-
-def _load_label_credentials() -> Credentials:
-    creds = None
-
-    if os.path.exists(TOKEN_FILE):
-        try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-        except Exception:
-            creds = None
-        if creds and not creds.has_scopes(SCOPES):
-            creds = None
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-            except RefreshError:
-                creds = None
-
-        if not creds or not creds.valid:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        if os.path.exists(TOKEN_FILE) and TOKEN_BACKUP_FILE != TOKEN_FILE:
-            with open(TOKEN_FILE, "r", encoding="utf-8") as current_token:
-                with open(TOKEN_BACKUP_FILE, "w", encoding="utf-8") as backup_token:
-                    backup_token.write(current_token.read())
-
-        with open(TOKEN_FILE, "w", encoding="utf-8") as token:
-            token.write(creds.to_json())
-
-    return creds
 
 
 def _gmail_service():
-    return build("gmail", "v1", credentials=_load_label_credentials())
+    return get_gmail_service(SCOPES)
 
 
 def _labels_list(service) -> list[dict]:
-    return service.users().labels().list(userId="me").execute().get("labels", [])
+    response = execute_gmail_request(service.users().labels().list(userId="me"))
+    return response.get("labels", [])
 
 
 def _resolve_label_ids(service, labels: Optional[Sequence[str]]) -> list[str]:
@@ -143,7 +100,9 @@ def gmail_create_label(
     }
 
     try:
-        return service.users().labels().create(userId="me", body=body).execute()
+        return execute_gmail_request(
+            service.users().labels().create(userId="me", body=body)
+        )
     except HttpError as error:
         raise RuntimeError(f"Gmail API error while creating label: {error}") from error
 
@@ -156,7 +115,9 @@ def gmail_delete_label(label: str) -> bool:
         raise ValueError("label must not be empty.")
 
     try:
-        service.users().labels().delete(userId="me", id=resolved_ids[0]).execute()
+        execute_gmail_request(
+            service.users().labels().delete(userId="me", id=resolved_ids[0])
+        )
         return True
     except HttpError as error:
         raise RuntimeError(f"Gmail API error while deleting label: {error}") from error
@@ -185,11 +146,10 @@ def gmail_modify_message_labels(
     }
 
     try:
-        return (
+        return execute_gmail_request(
             service.users()
             .messages()
             .modify(userId="me", id=normalized_message_id, body=body)
-            .execute()
         )
     except HttpError as error:
         raise RuntimeError(
@@ -220,11 +180,10 @@ def gmail_modify_thread_labels(
     }
 
     try:
-        return (
+        return execute_gmail_request(
             service.users()
             .threads()
             .modify(userId="me", id=normalized_thread_id, body=body)
-            .execute()
         )
     except HttpError as error:
         raise RuntimeError(

@@ -6,7 +6,14 @@ from typing import Dict, List, Optional, Sequence
 
 from googleapiclient.discovery import build
 
-from src.core.clients.gmail_client import gmail_client
+from src.core.clients.gmail_client import (
+    execute_gmail_request,
+    gmail_client,
+)
+
+
+def _gmail_service():
+    return build("gmail", "v1", credentials=gmail_client())
 
 
 def _extract_header(headers: list[dict], name: str) -> str:
@@ -63,9 +70,9 @@ def search_messages(
     include_details: bool = True,
 ) -> List[Dict[str, str]]:
     """Search messages using Gmail q/labelIds filters."""
-    service = build("gmail", "v1", credentials=gmail_client())
+    service = _gmail_service()
 
-    response = (
+    response = execute_gmail_request(
         service.users()
         .messages()
         .list(
@@ -76,7 +83,6 @@ def search_messages(
                 include_spam_trash=include_spam_trash,
             )
         )
-        .execute()
     )
 
     messages = response.get("messages", [])
@@ -96,7 +102,7 @@ def search_messages(
         if not message_id:
             continue
 
-        detail = (
+        detail = execute_gmail_request(
             service.users()
             .messages()
             .get(
@@ -105,7 +111,6 @@ def search_messages(
                 format="metadata",
                 metadataHeaders=["Subject", "From", "Date"],
             )
-            .execute()
         )
         headers = detail.get("payload", {}).get("headers", [])
 
@@ -132,9 +137,9 @@ def search_threads(
     include_details: bool = True,
 ) -> List[Dict[str, int | str]]:
     """Search threads using Gmail q/labelIds filters."""
-    service = build("gmail", "v1", credentials=gmail_client())
+    service = _gmail_service()
 
-    response = (
+    response = execute_gmail_request(
         service.users()
         .threads()
         .list(
@@ -145,7 +150,6 @@ def search_threads(
                 include_spam_trash=include_spam_trash,
             )
         )
-        .execute()
     )
 
     threads = response.get("threads", [])
@@ -164,7 +168,7 @@ def search_threads(
         if not thread_id:
             continue
 
-        detail = (
+        detail = execute_gmail_request(
             service.users()
             .threads()
             .get(
@@ -173,7 +177,6 @@ def search_threads(
                 format="metadata",
                 metadataHeaders=["Subject", "From", "Date"],
             )
-            .execute()
         )
 
         messages = detail.get("messages", [])

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import RefreshError
+from googleapiclient.errors import HttpError
 
 import src.core.clients.gmail_client as gmail_client_module
 
@@ -188,3 +190,70 @@ def test_backup_is_skipped_when_backup_path_equals_token(
 
     gmail_client_module.gmail_client()
     assert token_file.read_text(encoding="utf-8") == creds.to_json()
+
+
+def test_scope_mismatch_skips_cached_token_and_runs_oauth(
+    monkeypatch, patched_paths
+) -> None:
+    token_file, _, _ = patched_paths
+    token_file.write_text(
+        '{"scopes":["https://www.googleapis.com/auth/gmail.readonly"]}',
+        encoding="utf-8",
+    )
+
+    from_file_mock = MagicMock(return_value=FakeCreds(valid=True))
+    monkeypatch.setattr(
+        gmail_client_module.Credentials,
+        "from_authorized_user_file",
+        from_file_mock,
+    )
+    oauth_creds = FakeCreds(valid=True, payload='{"token":"oauth-token"}')
+    flow = FakeFlow(oauth_creds)
+    oauth_factory = MagicMock(return_value=flow)
+    monkeypatch.setattr(
+        gmail_client_module.InstalledAppFlow,
+        "from_client_secrets_file",
+        oauth_factory,
+    )
+
+    result = gmail_client_module.get_gmail_credentials(
+        ["https://www.googleapis.com/auth/gmail.compose"],
+        oauth_port=0,
+    )
+
+    assert result is oauth_creds
+    from_file_mock.assert_not_called()
+    oauth_factory.assert_called_once()
+
+
+def test_execute_gmail_request_retries_retryable_status() -> None:
+    request = MagicMock()
+    request.execute.side_effect = [
+        HttpError(resp=SimpleNamespace(status=500, reason="boom"), content=b""),
+        {"ok": True},
+    ]
+    sleeps: list[float] = []
+
+    result = gmail_client_module.execute_gmail_request(
+        request,
+        retries=3,
+        backoff_base_seconds=0.1,
+        sleep_fn=sleeps.append,
+    )
+
+    assert result == {"ok": True}
+    assert request.execute.call_count == 2
+    assert sleeps == [0.1]
+
+
+def test_execute_gmail_request_does_not_retry_non_retryable_status() -> None:
+    request = MagicMock()
+    request.execute.side_effect = HttpError(
+        resp=SimpleNamespace(status=403, reason="forbidden"),
+        content=b"",
+    )
+
+    with pytest.raises(HttpError):
+        gmail_client_module.execute_gmail_request(
+            request, retries=3, sleep_fn=lambda _v: None
+        )

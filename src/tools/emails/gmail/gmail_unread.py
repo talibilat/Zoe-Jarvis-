@@ -10,21 +10,28 @@ from typing import Dict, List, Optional, Union
 
 from googleapiclient.discovery import build
 
-from src.core.clients.gmail_client import gmail_client
+from src.core.clients.gmail_client import (
+    execute_gmail_request,
+    gmail_client,
+)
+
+
+def _gmail_service():
+    return build("gmail", "v1", credentials=gmail_client())
 
 
 def get_unread_count(*, query: str = "is:unread", batch_size: int = 500) -> int:
     """
     Return the number of unread Gmail messages matching the given query.
     """
-    service = build("gmail", "v1", credentials=gmail_client())
+    service = _gmail_service()
     batch_size = max(1, min(batch_size, 500))
 
     total = 0
     page_token: Optional[str] = None
 
     while True:
-        response = (
+        response = execute_gmail_request(
             service.users()
             .messages()
             .list(
@@ -33,7 +40,6 @@ def get_unread_count(*, query: str = "is:unread", batch_size: int = 500) -> int:
                 maxResults=batch_size,
                 pageToken=page_token,
             )
-            .execute()
         )
         total += len(response.get("messages", []))
         page_token = response.get("nextPageToken")
@@ -70,7 +76,7 @@ def get_unread_email_summary(
     else:
         limit = None
 
-    service = build("gmail", "v1", credentials=gmail_client())
+    service = _gmail_service()
 
     emails: List[Dict[str, str]] = []
     page_token: Optional[str] = None
@@ -83,7 +89,7 @@ def get_unread_email_summary(
                 break
             max_results = min(max_results, remaining)
 
-        response = (
+        response = execute_gmail_request(
             service.users()
             .messages()
             .list(
@@ -92,11 +98,10 @@ def get_unread_email_summary(
                 maxResults=max_results,
                 pageToken=page_token,
             )
-            .execute()
         )
 
         for msg in response.get("messages", []):
-            detail = (
+            detail = execute_gmail_request(
                 service.users()
                 .messages()
                 .get(
@@ -105,7 +110,6 @@ def get_unread_email_summary(
                     format="metadata",
                     metadataHeaders=["Subject", "From", "Date"],
                 )
-                .execute()
             )
             headers = detail.get("payload", {}).get("headers", [])
             header_map = {

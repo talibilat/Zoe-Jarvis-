@@ -61,6 +61,78 @@ def test_classify_assistant_text_categories() -> None:
     )
 
 
+def test_classify_assistant_stream_text_categories() -> None:
+    assert ui.classify_assistant_stream_text('{"id":"1"}') == "assistant_structured"
+    assert ui.classify_assistant_stream_text("[1, 2, 3]") == "assistant_structured"
+    assert (
+        ui.classify_assistant_stream_text("Could you confirm?") == "assistant_question"
+    )
+
+
+def test_format_assistant_stream_chunk_uses_stream_tone(monkeypatch) -> None:
+    seen: dict[str, str] = {}
+
+    def fake_colorize(text: str, *, tone: str, bold: bool = False) -> str:
+        seen["tone"] = tone
+        return f"{tone}:{text}:{bold}"
+
+    monkeypatch.setattr(ui, "colorize", fake_colorize)
+
+    result = ui.format_assistant_stream_chunk("{", accumulated_text='{"id":"1"}')
+
+    assert result == "assistant_structured:{:False"
+    assert seen["tone"] == "assistant_structured"
+
+
+def test_format_assistant_output_formats_gmail_payload(monkeypatch) -> None:
+    monkeypatch.setattr(ui, "_colors_enabled", lambda: False)
+    payload = (
+        '[{"subject":"Security alert","from":"Google <no-reply@accounts.google.com>",'
+        '"date":"Sat, 28 Feb 2026 23:42:22 GMT",'
+        '"snippet":"If you didn&#39;t allow this access"}]'
+        " Here are your 1 most recent unread Gmail messages:"
+    )
+
+    formatted = ui.format_assistant_output(payload)
+
+    assert formatted.startswith(
+        "Zoe: Here are your 1 most recent unread Gmail messages:"
+    )
+    assert "  1. Security alert" in formatted
+    assert "From: Google <no-reply@accounts.google.com>" in formatted
+    assert "Snippet: If you didn't allow this access" in formatted
+
+
+def test_format_assistant_output_defaults_for_plain_text(monkeypatch) -> None:
+    monkeypatch.setattr(ui, "_colors_enabled", lambda: False)
+
+    assert ui.format_assistant_output("Hello") == "Zoe: Hello"
+
+
+def test_format_gmail_unread_summary_limits_visible_items(monkeypatch) -> None:
+    monkeypatch.setattr(ui, "_colors_enabled", lambda: False)
+    emails = [
+        {
+            "subject": f"Subject {index}",
+            "from": "sender@example.com",
+            "date": "Mon, 1 Mar 2026 10:00:00 +0000",
+            "snippet": "Snippet text",
+        }
+        for index in range(1, 13)
+    ]
+
+    formatted = ui.format_gmail_unread_summary(
+        emails,
+        intro="Here are your emails:",
+        max_items=10,
+    )
+
+    assert "1. Subject 1" in formatted
+    assert "10. Subject 10" in formatted
+    assert "11. Subject 11" not in formatted
+    assert "... and 2 more emails." in formatted
+
+
 def test_format_helpers_call_colorize(monkeypatch) -> None:
     colorize_mock = MagicMock(side_effect=lambda text, **_kwargs: text)
     monkeypatch.setattr(ui, "colorize", colorize_mock)

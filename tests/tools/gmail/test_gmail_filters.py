@@ -182,7 +182,7 @@ def test_delete_filter_rejects_empty_id(monkeypatch) -> None:
         gmail_filters.delete_filter(" ")
 
 
-def test_create_filter_returns_none_on_http_error(monkeypatch) -> None:
+def test_create_filter_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingFiltersResource(_FakeFiltersResource):
         def create(self, **kwargs):
             self.create_calls.append(kwargs)
@@ -203,15 +203,13 @@ def test_create_filter_returns_none_on_http_error(monkeypatch) -> None:
         lambda: _FakeService(_FakeSettingsResource(resource)),
     )
 
-    assert (
+    with pytest.raises(RuntimeError, match="creating filter"):
         gmail_filters.create_filter(
             criteria={"from": "a@b.com"}, action={"addLabelIds": []}
         )
-        is None
-    )
 
 
-def test_list_filters_returns_empty_on_http_error(monkeypatch) -> None:
+def test_list_filters_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingFiltersResource(_FakeFiltersResource):
         def list(self, **kwargs):
             self.list_calls.append(kwargs)
@@ -232,10 +230,11 @@ def test_list_filters_returns_empty_on_http_error(monkeypatch) -> None:
         lambda: _FakeService(_FakeSettingsResource(resource)),
     )
 
-    assert gmail_filters.list_filters() == []
+    with pytest.raises(RuntimeError, match="listing filters"):
+        gmail_filters.list_filters()
 
 
-def test_get_filter_returns_none_on_http_error(monkeypatch) -> None:
+def test_get_filter_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingFiltersResource(_FakeFiltersResource):
         def get(self, **kwargs):
             self.get_calls.append(kwargs)
@@ -256,10 +255,11 @@ def test_get_filter_returns_none_on_http_error(monkeypatch) -> None:
         lambda: _FakeService(_FakeSettingsResource(resource)),
     )
 
-    assert gmail_filters.get_filter("f1") is None
+    with pytest.raises(RuntimeError, match="getting filter"):
+        gmail_filters.get_filter("f1")
 
 
-def test_delete_filter_returns_false_on_http_error(monkeypatch) -> None:
+def test_delete_filter_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingFiltersResource(_FakeFiltersResource):
         def delete(self, **kwargs):
             self.delete_calls.append(kwargs)
@@ -280,4 +280,5 @@ def test_delete_filter_returns_false_on_http_error(monkeypatch) -> None:
         lambda: _FakeService(_FakeSettingsResource(resource)),
     )
 
-    assert gmail_filters.delete_filter("f1") is False
+    with pytest.raises(RuntimeError, match="deleting filter"):
+        gmail_filters.delete_filter("f1")

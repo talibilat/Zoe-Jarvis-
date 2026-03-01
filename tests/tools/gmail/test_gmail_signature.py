@@ -173,7 +173,7 @@ def test_update_signature_defaults_display_name_to_send_as_email(monkeypatch) ->
     assert send_as.patch_calls[0]["body"]["displayName"] == "primary@example.com"
 
 
-def test_update_signature_returns_none_on_http_error(monkeypatch) -> None:
+def test_update_signature_raises_runtime_error_on_http_error(monkeypatch) -> None:
     class _FailingRequest:
         def execute(self):
             raise HttpError(
@@ -199,4 +199,5 @@ def test_update_signature_returns_none_on_http_error(monkeypatch) -> None:
         gmail_signature, "_gmail_service", lambda: _FakeService(send_as)
     )
 
-    assert gmail_signature.update_signature() is None
+    with pytest.raises(RuntimeError, match="updating signature"):
+        gmail_signature.update_signature()

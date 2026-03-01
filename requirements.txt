@@ -6,7 +6,6 @@ azure-identity
 azure-cognitiveservices-speech
 openai
 loguru
-sounddevice
 langchain
 langchain-community
 langchain-core
@@ -14,8 +13,6 @@ langchain-ollama
 langchain-openai
 langchain-anthropic
 ollama
-openai
-python-dotenv
 pyttsx3
 pytz
 SpeechRecognition
@@ -28,8 +25,6 @@ duckduckgo-search
 pytesseract
 
 langgraph
-dotenv
-typing
 chromadb
 langchain_chroma
 

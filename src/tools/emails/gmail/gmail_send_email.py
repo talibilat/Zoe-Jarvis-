@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 from email.message import EmailMessage
+from pathlib import Path
 
-from google.auth.exceptions import RefreshError
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+from src.core.clients import gmail_client as gmail_client_module
+from src.core.clients.gmail_client import execute_gmail_request
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
 TOKEN_FILE = (os.getenv("GMAIL_TOKEN_FILE") or "token.json").strip() or "token.json"
@@ -20,27 +21,6 @@ TOKEN_BACKUP_FILE = (
 CREDS_FILE = (
     os.getenv("GMAIL_CREDENTIALS_FILE") or "credentials.json"
 ).strip() or "credentials.json"
-
-
-def _read_declared_scopes(token_path: str) -> set[str]:
-    try:
-        with open(token_path, "r", encoding="utf-8") as token:
-            payload = json.load(token)
-    except (OSError, json.JSONDecodeError, TypeError):
-        return set()
-
-    declared_scopes = payload.get("scopes") or payload.get("scope")
-    if isinstance(declared_scopes, str):
-        return {scope for scope in declared_scopes.split() if scope}
-    if isinstance(declared_scopes, list):
-        return {str(scope).strip() for scope in declared_scopes if str(scope).strip()}
-
-    return set()
-
-
-def _token_has_required_scopes(token_path: str, required_scopes: list[str]) -> bool:
-    declared_scopes = _read_declared_scopes(token_path)
-    return bool(declared_scopes) and set(required_scopes).issubset(declared_scopes)
 
 
 def _format_send_http_error(error: HttpError) -> str:
@@ -55,35 +35,21 @@ def _format_send_http_error(error: HttpError) -> str:
     return f"Gmail send failed (HTTP {status}): {details}"
 
 
-def _load_compose_credentials() -> Credentials:
-    creds = None
+def _sync_shared_client_settings() -> None:
+    gmail_client_module.TOKEN_FILE = Path(TOKEN_FILE)
+    gmail_client_module.TOKEN_BACKUP_FILE = Path(TOKEN_BACKUP_FILE)
+    gmail_client_module.CREDS_FILE = Path(CREDS_FILE)
+    gmail_client_module.Credentials = Credentials
+    gmail_client_module.InstalledAppFlow = InstalledAppFlow
 
-    if os.path.exists(TOKEN_FILE) and _token_has_required_scopes(TOKEN_FILE, SCOPES):
-        try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-        except Exception:
-            creds = None
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-            except RefreshError:
-                creds = None
+def _load_compose_credentials():
+    _sync_shared_client_settings()
+    return gmail_client_module.get_gmail_credentials(SCOPES, oauth_port=0)
 
-        if not creds or not creds.valid:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
 
-        if os.path.exists(TOKEN_FILE) and TOKEN_BACKUP_FILE != TOKEN_FILE:
-            with open(TOKEN_FILE, "r", encoding="utf-8") as current_token:
-                with open(TOKEN_BACKUP_FILE, "w", encoding="utf-8") as backup_token:
-                    backup_token.write(current_token.read())
-
-        with open(TOKEN_FILE, "w", encoding="utf-8") as token:
-            token.write(creds.to_json())
-
-    return creds
+def _gmail_service():
+    return build("gmail", "v1", credentials=_load_compose_credentials())
 
 
 def gmail_send_email(
@@ -93,10 +59,8 @@ def gmail_send_email(
     body: str,
 ) -> dict:
     """Send a Gmail email and return the send response payload."""
-    creds = _load_compose_credentials()
-
     try:
-        service = build("gmail", "v1", credentials=creds)
+        service = _gmail_service()
 
         message = EmailMessage()
         message["To"] = email_to
@@ -106,14 +70,9 @@ def gmail_send_email(
 
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
-        sent_message = (
-            service.users()
-            .messages()
-            .send(userId="me", body={"raw": encoded_message})
-            .execute()
+        sent_message = execute_gmail_request(
+            service.users().messages().send(userId="me", body={"raw": encoded_message})
         )
-
         return sent_message
-
     except HttpError as error:
         raise RuntimeError(_format_send_http_error(error)) from error
